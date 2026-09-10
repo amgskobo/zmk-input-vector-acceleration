@@ -24,8 +24,13 @@ The one-report delay is intentional. ZMK input processors receive X and Y as
 separate events, and the first axis cannot know the second axis value without
 buffering and re-emitting the whole report. Reusing the previous report's gain
 keeps the processor small, preserves event order, and avoids a work queue or
-proxy input device. The first report and the first report after more than
-100 ms of inactivity use 1.0x gain.
+proxy input device. Establishing an interval takes two reports, so the first
+two reports at startup and after more than 100 ms of inactivity use 1.0x gain.
+
+ZMK selects a layer override separately for each event. If a layer changes
+between X and the synchronized Y event, the processor may miss the sync that
+would close its frame. A repeated axis identifies that incomplete frame; it is
+discarded instead of being combined with the next report.
 
 ## Configuration
 

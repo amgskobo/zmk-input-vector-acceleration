@@ -28,6 +28,7 @@ struct vector_accel_stream {
     int32_t frame_delta[VECTOR_ACCEL_AXIS_COUNT];
     int64_t last_report_time_ms;
     uint16_t factor;
+    uint8_t seen_axes;
     bool have_report_time;
     bool frame_open;
 };
@@ -39,7 +40,8 @@ uint16_t vector_accel_compute_factor(const struct vector_accel_config *config, u
 int32_t vector_accel_scale_value(int32_t value, uint16_t factor, int32_t *remainder);
 
 void vector_accel_stream_init(struct vector_accel_stream *stream);
-uint16_t vector_accel_stream_begin_frame(struct vector_accel_stream *stream, int64_t now_ms);
+uint16_t vector_accel_stream_begin_axis(struct vector_accel_stream *stream,
+                                        enum vector_accel_axis axis, int64_t now_ms);
 void vector_accel_stream_add(struct vector_accel_stream *stream, enum vector_accel_axis axis,
                              int32_t value);
 void vector_accel_stream_finish_frame(struct vector_accel_stream *stream,

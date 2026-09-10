@@ -46,7 +46,7 @@ static int scale_axis_event(struct input_event *event, struct vector_accel_data 
                             struct zmk_input_processor_state *state, size_t stream_index,
                             enum vector_accel_axis axis, int64_t now_ms) {
     int32_t raw = event->value;
-    uint16_t factor = vector_accel_stream_begin_frame(stream, now_ms);
+    uint16_t factor = vector_accel_stream_begin_axis(stream, axis, now_ms);
     int32_t remainder;
 
     vector_accel_stream_add(stream, axis, raw);

@@ -68,29 +68,33 @@ static void test_report_state(void) {
     struct vector_accel_stream stream;
     vector_accel_stream_init(&stream);
 
-    assert(vector_accel_stream_begin_frame(&stream, 1000) == 1000U);
+    assert(vector_accel_stream_begin_axis(&stream, VECTOR_ACCEL_AXIS_X, 1000) == 1000U);
     vector_accel_stream_add(&stream, VECTOR_ACCEL_AXIS_X, 100);
+    assert(vector_accel_stream_begin_axis(&stream, VECTOR_ACCEL_AXIS_Y, 1000) == 1000U);
     vector_accel_stream_add(&stream, VECTOR_ACCEL_AXIS_Y, 10);
     vector_accel_stream_finish_frame(&stream, &test_config, 1000);
     assert(stream.factor == 1000U);
 
-    assert(vector_accel_stream_begin_frame(&stream, 1010) == 1000U);
+    assert(vector_accel_stream_begin_axis(&stream, VECTOR_ACCEL_AXIS_X, 1010) == 1000U);
     vector_accel_stream_add(&stream, VECTOR_ACCEL_AXIS_X, 100);
+    assert(vector_accel_stream_begin_axis(&stream, VECTOR_ACCEL_AXIS_Y, 1010) == 1000U);
     vector_accel_stream_add(&stream, VECTOR_ACCEL_AXIS_Y, 10);
     vector_accel_stream_finish_frame(&stream, &test_config, 1010);
     assert(stream.factor == 3200U);
 
     int32_t rem_x = 0;
     int32_t rem_y = 0;
-    uint16_t factor = vector_accel_stream_begin_frame(&stream, 1020);
+    uint16_t factor =
+        vector_accel_stream_begin_axis(&stream, VECTOR_ACCEL_AXIS_X, 1020);
     assert(factor == 3200U);
     assert(vector_accel_scale_value(100, factor, &rem_x) == 320);
     assert(vector_accel_scale_value(10, factor, &rem_y) == 32);
     vector_accel_stream_add(&stream, VECTOR_ACCEL_AXIS_X, 100);
+    assert(vector_accel_stream_begin_axis(&stream, VECTOR_ACCEL_AXIS_Y, 1020) == 3200U);
     vector_accel_stream_add(&stream, VECTOR_ACCEL_AXIS_Y, 10);
     vector_accel_stream_finish_frame(&stream, &test_config, 1020);
 
-    assert(vector_accel_stream_begin_frame(&stream, 1201) == 1000U);
+    assert(vector_accel_stream_begin_axis(&stream, VECTOR_ACCEL_AXIS_X, 1201) == 1000U);
     vector_accel_stream_add(&stream, VECTOR_ACCEL_AXIS_X, 10);
     vector_accel_stream_finish_frame(&stream, &test_config, 1201);
     assert(stream.factor == 1000U);
@@ -102,15 +106,51 @@ static void test_independent_streams(void) {
     vector_accel_stream_init(&first);
     vector_accel_stream_init(&second);
 
-    vector_accel_stream_begin_frame(&first, 10);
+    vector_accel_stream_begin_axis(&first, VECTOR_ACCEL_AXIS_X, 10);
     vector_accel_stream_add(&first, VECTOR_ACCEL_AXIS_X, 100);
     vector_accel_stream_finish_frame(&first, &test_config, 10);
-    vector_accel_stream_begin_frame(&first, 20);
+    vector_accel_stream_begin_axis(&first, VECTOR_ACCEL_AXIS_X, 20);
     vector_accel_stream_add(&first, VECTOR_ACCEL_AXIS_X, 100);
     vector_accel_stream_finish_frame(&first, &test_config, 20);
 
     assert(first.factor == 3200U);
-    assert(vector_accel_stream_begin_frame(&second, 20) == 1000U);
+    assert(vector_accel_stream_begin_axis(&second, VECTOR_ACCEL_AXIS_X, 20) == 1000U);
+}
+
+static void test_incomplete_frame_recovery(void) {
+    struct vector_accel_stream stream;
+    vector_accel_stream_init(&stream);
+
+    vector_accel_stream_begin_axis(&stream, VECTOR_ACCEL_AXIS_X, 10);
+    vector_accel_stream_add(&stream, VECTOR_ACCEL_AXIS_X, 10);
+    vector_accel_stream_finish_frame(&stream, &test_config, 10);
+
+    /* The synchronized Y event is routed to another layer and never arrives. */
+    vector_accel_stream_begin_axis(&stream, VECTOR_ACCEL_AXIS_X, 20);
+    vector_accel_stream_add(&stream, VECTOR_ACCEL_AXIS_X, 1000);
+
+    /* A second X proves a new report started. The stale 1000 must be dropped. */
+    assert(vector_accel_stream_begin_axis(&stream, VECTOR_ACCEL_AXIS_X, 30) == 1000U);
+    vector_accel_stream_add(&stream, VECTOR_ACCEL_AXIS_X, 1);
+    vector_accel_stream_finish_frame(&stream, &test_config, 30);
+    assert(stream.factor < 1000U);
+
+    /* Recovery also applies the normal inactivity reset to the new report. */
+    vector_accel_stream_begin_axis(&stream, VECTOR_ACCEL_AXIS_X, 40);
+    vector_accel_stream_add(&stream, VECTOR_ACCEL_AXIS_X, 1000);
+    assert(vector_accel_stream_begin_axis(&stream, VECTOR_ACCEL_AXIS_X, 200) == 1000U);
+}
+
+static void test_invalid_axis_is_ignored(void) {
+    struct vector_accel_stream stream;
+    vector_accel_stream_init(&stream);
+
+    enum vector_accel_axis invalid = (enum vector_accel_axis)-1;
+    assert(vector_accel_stream_begin_axis(&stream, invalid, 10) == 1000U);
+    vector_accel_stream_add(&stream, invalid, 100);
+    assert(!stream.frame_open);
+    assert(stream.frame_delta[VECTOR_ACCEL_AXIS_X] == 0);
+    assert(stream.frame_delta[VECTOR_ACCEL_AXIS_Y] == 0);
 }
 
 int main(void) {
@@ -120,6 +160,8 @@ int main(void) {
     test_remainders_and_saturation();
     test_report_state();
     test_independent_streams();
+    test_incomplete_frame_recovery();
+    test_invalid_axis_is_ignored();
     puts("vector acceleration tests: PASS");
     return 0;
 }

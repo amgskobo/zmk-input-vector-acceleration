@@ -112,7 +112,28 @@ void vector_accel_stream_init(struct vector_accel_stream *stream) {
     };
 }
 
-uint16_t vector_accel_stream_begin_frame(struct vector_accel_stream *stream, int64_t now_ms) {
+uint16_t vector_accel_stream_begin_axis(struct vector_accel_stream *stream,
+                                        enum vector_accel_axis axis, int64_t now_ms) {
+    if ((uint32_t)axis >= VECTOR_ACCEL_AXIS_COUNT) {
+        return stream->factor == 0U ? VECTOR_ACCEL_SCALE : stream->factor;
+    }
+
+    uint8_t axis_bit = (uint8_t)(1U << axis);
+
+    /*
+     * A layer override is selected separately for every ZMK input event. If a
+     * layer changes between X and the synchronized Y event, this processor can
+     * see X but miss the sync that closes its frame. Seeing the same axis again
+     * proves that the old report is incomplete, so discard it before it can be
+     * combined with the new report.
+     */
+    if (stream->frame_open && axis_bit != 0U && (stream->seen_axes & axis_bit) != 0U) {
+        stream->frame_delta[VECTOR_ACCEL_AXIS_X] = 0;
+        stream->frame_delta[VECTOR_ACCEL_AXIS_Y] = 0;
+        stream->seen_axes = 0U;
+        stream->frame_open = false;
+    }
+
     if (!stream->frame_open) {
         stream->frame_open = true;
 
@@ -122,12 +143,14 @@ uint16_t vector_accel_stream_begin_frame(struct vector_accel_stream *stream, int
         }
     }
 
+    stream->seen_axes |= axis_bit;
+
     return stream->factor == 0U ? VECTOR_ACCEL_SCALE : stream->factor;
 }
 
 void vector_accel_stream_add(struct vector_accel_stream *stream, enum vector_accel_axis axis,
                              int32_t value) {
-    if (axis >= VECTOR_ACCEL_AXIS_COUNT) {
+    if ((uint32_t)axis >= VECTOR_ACCEL_AXIS_COUNT) {
         return;
     }
 
@@ -157,6 +180,7 @@ void vector_accel_stream_finish_frame(struct vector_accel_stream *stream,
 
     stream->frame_delta[VECTOR_ACCEL_AXIS_X] = 0;
     stream->frame_delta[VECTOR_ACCEL_AXIS_Y] = 0;
+    stream->seen_axes = 0U;
     stream->last_report_time_ms = now_ms;
     stream->have_report_time = true;
     stream->frame_open = false;
