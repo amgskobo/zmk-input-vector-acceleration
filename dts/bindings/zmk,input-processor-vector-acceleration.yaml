@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: MIT
+
+description: Report-based fixed-point vector acceleration for relative pointer motion
+
+compatible: "zmk,input-processor-vector-acceleration"
+
+include: ip_zero_param.yaml
+
+properties:
+  min-factor:
+    type: int
+    default: 1000
+    description: Gain at zero speed, in thousandths. Must be between 100 and 1000.
+
+  max-factor:
+    type: int
+    default: 3500
+    description: Gain at max-speed and above, in thousandths. Must be between 1000 and 20000.
+
+  unity-speed:
+    type: int
+    default: 1000
+    description: Vector speed in counts per second at which gain is exactly 1.0.
+
+  max-speed:
+    type: int
+    default: 6000
+    description: Vector speed in counts per second at which max-factor is reached.

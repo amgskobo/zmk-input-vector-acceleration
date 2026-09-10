@@ -1,0 +1,8 @@
+/ {
+    vector_accel: vector_accel {
+        compatible = "zmk,input-processor-vector-acceleration";
+        status = "okay";
+        #input-processor-cells = <0>;
+        track-remainders;
+    };
+};
