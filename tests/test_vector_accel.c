@@ -10,12 +10,76 @@
 
 #include <zmk-input-vector-acceleration/vector_accel_core.h>
 
+#define ARRAY_SIZE(array) (sizeof(array) / sizeof((array)[0]))
+
 static const struct vector_accel_config test_config = {
     .min_factor = 500,
     .max_factor = 3200,
     .unity_speed = 1200,
     .max_speed = 6000,
 };
+
+static uint32_t reference_speed(uint32_t magnitude, uint32_t interval_ms) {
+    if (interval_ms == 0U) {
+        interval_ms = 1U;
+    }
+
+    uint64_t speed = ((uint64_t)magnitude * VECTOR_ACCEL_SCALE) / interval_ms;
+    return speed > UINT32_MAX ? UINT32_MAX : (uint32_t)speed;
+}
+
+static uint16_t reference_factor(const struct vector_accel_config *config, uint32_t speed) {
+    uint32_t min_factor = config->min_factor < VECTOR_ACCEL_MIN_FACTOR_FLOOR
+                              ? VECTOR_ACCEL_MIN_FACTOR_FLOOR
+                              : config->min_factor;
+    uint32_t max_factor = config->max_factor > VECTOR_ACCEL_MAX_FACTOR_CEILING
+                              ? VECTOR_ACCEL_MAX_FACTOR_CEILING
+                              : config->max_factor;
+    uint32_t unity_speed = config->unity_speed == 0U ? 1U : config->unity_speed;
+    uint32_t max_speed = config->max_speed > unity_speed ? config->max_speed : unity_speed;
+
+    if (min_factor > VECTOR_ACCEL_SCALE) {
+        min_factor = VECTOR_ACCEL_SCALE;
+    }
+    if (max_factor < VECTOR_ACCEL_SCALE) {
+        max_factor = VECTOR_ACCEL_SCALE;
+    }
+
+    if (speed <= unity_speed) {
+        uint32_t position = (uint32_t)(((uint64_t)speed * VECTOR_ACCEL_SCALE) / unity_speed);
+        uint32_t shaped = (uint32_t)(((uint64_t)position * position) / VECTOR_ACCEL_SCALE);
+        uint32_t span = VECTOR_ACCEL_SCALE - min_factor;
+        return (uint16_t)(min_factor + (uint32_t)(((uint64_t)span * shaped) / VECTOR_ACCEL_SCALE));
+    }
+
+    if (speed >= max_speed) {
+        return (uint16_t)max_factor;
+    }
+
+    uint32_t position = (uint32_t)(((uint64_t)(speed - unity_speed) * VECTOR_ACCEL_SCALE) /
+                                   (max_speed - unity_speed));
+    uint32_t shaped = (uint32_t)(((uint64_t)position * position) / VECTOR_ACCEL_SCALE);
+    uint32_t span = max_factor - VECTOR_ACCEL_SCALE;
+    return (uint16_t)(VECTOR_ACCEL_SCALE +
+                      (uint32_t)(((uint64_t)span * shaped) / VECTOR_ACCEL_SCALE));
+}
+
+static int32_t reference_scale_value(int32_t value, uint16_t factor, int32_t *remainder) {
+    int64_t total = (int64_t)value * factor + *remainder;
+    int64_t output = total / VECTOR_ACCEL_SCALE;
+
+    if (output > INT32_MAX) {
+        *remainder = 0;
+        return INT32_MAX;
+    }
+    if (output < INT32_MIN) {
+        *remainder = 0;
+        return INT32_MIN;
+    }
+
+    *remainder = (int32_t)(total - output * VECTOR_ACCEL_SCALE);
+    return (int32_t)output;
+}
 
 static void test_absolute_value(void) {
     assert(vector_accel_abs_i32(0) == 0U);
@@ -40,9 +104,65 @@ static void test_curve(void) {
     uint16_t previous = 0U;
     for (uint32_t speed = 0U; speed <= 7000U; speed++) {
         uint16_t factor = vector_accel_compute_factor(&test_config, speed);
+        assert(factor == reference_factor(&test_config, speed));
         assert(factor >= previous);
         assert(factor >= 500U && factor <= 3200U);
         previous = factor;
+    }
+
+    static const struct vector_accel_config extreme_configs[] = {
+        {.min_factor = 100,
+         .max_factor = 20000,
+         .unity_speed = UINT32_MAX - 1U,
+         .max_speed = UINT32_MAX},
+        {.min_factor = 1000, .max_factor = 1000, .unity_speed = 1, .max_speed = UINT32_MAX},
+    };
+    static const uint32_t extreme_speeds[] = {
+        0U,
+        1U,
+        UINT32_MAX / VECTOR_ACCEL_SCALE,
+        UINT32_MAX / VECTOR_ACCEL_SCALE + 1U,
+        UINT32_MAX / 2U,
+        UINT32_MAX - 1U,
+        UINT32_MAX,
+    };
+
+    for (size_t config_index = 0U; config_index < ARRAY_SIZE(extreme_configs); config_index++) {
+        for (size_t speed_index = 0U; speed_index < ARRAY_SIZE(extreme_speeds); speed_index++) {
+            assert(vector_accel_compute_factor(&extreme_configs[config_index],
+                                               extreme_speeds[speed_index]) ==
+                   reference_factor(&extreme_configs[config_index], extreme_speeds[speed_index]));
+        }
+    }
+}
+
+static void test_speed_equivalence(void) {
+    static const uint32_t magnitudes[] = {
+        0U,
+        1U,
+        999U,
+        1000U,
+        UINT32_MAX / VECTOR_ACCEL_SCALE,
+        UINT32_MAX / VECTOR_ACCEL_SCALE + 1U,
+        UINT32_MAX - 1U,
+        UINT32_MAX,
+    };
+    static const uint32_t intervals[] = {
+        0U,
+        1U,
+        2U,
+        100U,
+        UINT32_MAX / VECTOR_ACCEL_SCALE,
+        UINT32_MAX / VECTOR_ACCEL_SCALE + 1U,
+        UINT32_MAX / VECTOR_ACCEL_SCALE + 2U,
+        UINT32_MAX,
+    };
+
+    for (size_t magnitude_index = 0U; magnitude_index < ARRAY_SIZE(magnitudes); magnitude_index++) {
+        for (size_t interval_index = 0U; interval_index < ARRAY_SIZE(intervals); interval_index++) {
+            assert(vector_accel_speed(magnitudes[magnitude_index], intervals[interval_index]) ==
+                   reference_speed(magnitudes[magnitude_index], intervals[interval_index]));
+        }
     }
 }
 
@@ -62,6 +182,38 @@ static void test_remainders_and_saturation(void) {
     assert(remainder == 0);
     assert(vector_accel_scale_value(INT32_MIN, 20000, &remainder) == INT32_MIN);
     assert(remainder == 0);
+
+    static const int32_t values[] = {
+        INT32_MIN, INT32_MIN + 1, -1001, -1000, -999,          -1,        0,
+        1,         999,           1000,  1001,  INT32_MAX - 1, INT32_MAX,
+    };
+    static const uint16_t factors[] = {0U, 1U, 100U, 999U, 1000U, 20000U, UINT16_MAX};
+    static const int32_t previous_remainders[] = {
+        INT32_MIN, -1001, -1000, -999, -1, 0, 1, 999, 1000, 1001, INT32_MAX,
+    };
+
+    for (size_t value_index = 0U; value_index < ARRAY_SIZE(values); value_index++) {
+        for (size_t factor_index = 0U; factor_index < ARRAY_SIZE(factors); factor_index++) {
+            for (size_t remainder_index = 0U; remainder_index < ARRAY_SIZE(previous_remainders);
+                 remainder_index++) {
+                int32_t expected_remainder = previous_remainders[remainder_index];
+                int32_t actual_remainder = expected_remainder;
+                int32_t expected = reference_scale_value(values[value_index], factors[factor_index],
+                                                         &expected_remainder);
+                int32_t actual = vector_accel_scale_value(values[value_index],
+                                                          factors[factor_index], &actual_remainder);
+
+                assert(actual == expected);
+                assert(actual_remainder == expected_remainder);
+            }
+
+            int32_t zero_remainder = 0;
+            int32_t expected =
+                reference_scale_value(values[value_index], factors[factor_index], &zero_remainder);
+            assert(vector_accel_scale_value(values[value_index], factors[factor_index], NULL) ==
+                   expected);
+        }
+    }
 }
 
 static void test_report_state(void) {
@@ -205,6 +357,7 @@ int main(void) {
     test_absolute_value();
     test_magnitude();
     test_curve();
+    test_speed_equivalence();
     test_remainders_and_saturation();
     test_report_state();
     test_independent_streams();

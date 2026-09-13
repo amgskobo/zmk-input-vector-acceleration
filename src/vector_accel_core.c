@@ -30,6 +30,20 @@ static int32_t saturating_add_i32(int32_t left, int32_t right) {
     return (int32_t)sum;
 }
 
+static uint32_t scale_ratio(uint32_t numerator, uint32_t denominator) {
+    /*
+     * Every caller asks for a value scaled by VECTOR_ACCEL_SCALE. Pointer
+     * speeds fit this fast path by several orders of magnitude, keeping the
+     * Cortex-M hot path on its native 32-bit divider. Preserve the full
+     * uint32_t API with a 64-bit fallback for unusual devicetree values.
+     */
+    if (numerator <= UINT32_MAX / VECTOR_ACCEL_SCALE) {
+        return (numerator * VECTOR_ACCEL_SCALE) / denominator;
+    }
+
+    return (uint32_t)(((uint64_t)numerator * VECTOR_ACCEL_SCALE) / denominator);
+}
+
 bool vector_accel_config_valid(const struct vector_accel_config *config) {
     if (config == NULL) {
         return false;
@@ -71,6 +85,30 @@ uint32_t vector_accel_speed(uint32_t magnitude, uint32_t interval_ms) {
         interval_ms = 1U;
     }
 
+    if (magnitude <= UINT32_MAX / VECTOR_ACCEL_SCALE) {
+        return (magnitude * VECTOR_ACCEL_SCALE) / interval_ms;
+    }
+
+    /*
+     * q * scale + (r * scale) / interval is exactly the same as
+     * (magnitude * scale) / interval. When the interval is small enough, the
+     * remainder product fits uint32_t and no software 64-bit division is
+     * needed. Every interval accepted by the stream hot path is at most 100.
+     */
+    if (interval_ms <= UINT32_MAX / VECTOR_ACCEL_SCALE + 1U) {
+        uint32_t quotient = magnitude / interval_ms;
+        uint32_t remainder = magnitude - quotient * interval_ms;
+
+        if (quotient > UINT32_MAX / VECTOR_ACCEL_SCALE) {
+            return UINT32_MAX;
+        }
+
+        uint32_t scaled = quotient * VECTOR_ACCEL_SCALE;
+        uint32_t fraction = (remainder * VECTOR_ACCEL_SCALE) / interval_ms;
+
+        return fraction > UINT32_MAX - scaled ? UINT32_MAX : scaled + fraction;
+    }
+
     uint64_t speed = ((uint64_t)magnitude * 1000U) / interval_ms;
     return speed > UINT32_MAX ? UINT32_MAX : (uint32_t)speed;
 }
@@ -82,28 +120,55 @@ uint16_t vector_accel_compute_factor(const struct vector_accel_config *config, u
     const uint32_t max_speed = config->max_speed > unity_speed ? config->max_speed : unity_speed;
 
     if (speed <= unity_speed) {
-        uint32_t position = (uint32_t)(((uint64_t)speed * VECTOR_ACCEL_SCALE) / unity_speed);
-        uint32_t shaped = (uint32_t)(((uint64_t)position * position) / VECTOR_ACCEL_SCALE);
+        uint32_t position = scale_ratio(speed, unity_speed);
+        uint32_t shaped = (position * position) / VECTOR_ACCEL_SCALE;
         uint32_t span = VECTOR_ACCEL_SCALE - min_factor;
-        return (uint16_t)(min_factor + (uint32_t)(((uint64_t)span * shaped) / VECTOR_ACCEL_SCALE));
+        return (uint16_t)(min_factor + (span * shaped) / VECTOR_ACCEL_SCALE);
     }
 
     if (speed >= max_speed) {
         return (uint16_t)max_factor;
     }
 
-    uint32_t position = (uint32_t)(((uint64_t)(speed - unity_speed) * VECTOR_ACCEL_SCALE) /
-                                   (max_speed - unity_speed));
-    uint32_t shaped = (uint32_t)(((uint64_t)position * position) / VECTOR_ACCEL_SCALE);
+    uint32_t position = scale_ratio(speed - unity_speed, max_speed - unity_speed);
+    uint32_t shaped = (position * position) / VECTOR_ACCEL_SCALE;
     uint32_t span = max_factor - VECTOR_ACCEL_SCALE;
-    return (uint16_t)(VECTOR_ACCEL_SCALE +
-                      (uint32_t)(((uint64_t)span * shaped) / VECTOR_ACCEL_SCALE));
+    return (uint16_t)(VECTOR_ACCEL_SCALE + (span * shaped) / VECTOR_ACCEL_SCALE);
 }
 
 int32_t vector_accel_scale_value(int32_t value, uint16_t factor, int32_t *remainder) {
+    const int32_t scale = (int32_t)VECTOR_ACCEL_SCALE;
     int32_t previous_remainder = remainder == NULL ? 0 : *remainder;
-    int64_t total = (int64_t)value * factor + previous_remainder;
-    int64_t output = total / VECTOR_ACCEL_SCALE;
+    int32_t value_quotient = 0;
+    int32_t value_remainder = value;
+    int32_t previous_quotient = 0;
+    int32_t previous_fraction = previous_remainder;
+
+    if (value <= -scale || value >= scale) {
+        value_quotient = value / scale;
+        value_remainder = value - value_quotient * scale;
+    }
+    if (previous_remainder <= -scale || previous_remainder >= scale) {
+        previous_quotient = previous_remainder / scale;
+        previous_fraction = previous_remainder - previous_quotient * scale;
+    }
+
+    int32_t fraction = value_remainder * factor + previous_fraction;
+    int32_t fraction_quotient = fraction / scale;
+    int64_t output = (int64_t)value_quotient * factor + previous_quotient + fraction_quotient;
+
+    fraction -= fraction_quotient * scale;
+
+    /* C division truncates toward zero, so the final remainder must have the
+     * same sign as the full result rather than as the fractional part alone.
+     */
+    if (output > 0 && fraction < 0) {
+        output--;
+        fraction += scale;
+    } else if (output < 0 && fraction > 0) {
+        output++;
+        fraction -= scale;
+    }
 
     if (output > INT32_MAX) {
         if (remainder != NULL) {
@@ -119,7 +184,7 @@ int32_t vector_accel_scale_value(int32_t value, uint16_t factor, int32_t *remain
     }
 
     if (remainder != NULL) {
-        *remainder = (int32_t)(total - output * VECTOR_ACCEL_SCALE);
+        *remainder = fraction;
     }
     return (int32_t)output;
 }
