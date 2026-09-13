@@ -30,6 +30,28 @@ static int32_t saturating_add_i32(int32_t left, int32_t right) {
     return (int32_t)sum;
 }
 
+bool vector_accel_config_valid(const struct vector_accel_config *config) {
+    if (config == NULL) {
+        return false;
+    }
+
+    if (config->min_factor < VECTOR_ACCEL_MIN_FACTOR_FLOOR ||
+        config->min_factor > VECTOR_ACCEL_SCALE) {
+        return false;
+    }
+
+    if (config->max_factor < VECTOR_ACCEL_SCALE ||
+        config->max_factor > VECTOR_ACCEL_MAX_FACTOR_CEILING) {
+        return false;
+    }
+
+    if (config->unity_speed == 0U) {
+        return false;
+    }
+
+    return config->max_speed > config->unity_speed;
+}
+
 uint32_t vector_accel_abs_i32(int32_t value) {
     return value < 0 ? (uint32_t)(-(int64_t)value) : (uint32_t)value;
 }
@@ -60,13 +82,10 @@ uint16_t vector_accel_compute_factor(const struct vector_accel_config *config, u
     const uint32_t max_speed = config->max_speed > unity_speed ? config->max_speed : unity_speed;
 
     if (speed <= unity_speed) {
-        uint32_t position = (uint32_t)(((uint64_t)speed * VECTOR_ACCEL_SCALE) /
-                                       unity_speed);
-        uint32_t shaped =
-            (uint32_t)(((uint64_t)position * position) / VECTOR_ACCEL_SCALE);
+        uint32_t position = (uint32_t)(((uint64_t)speed * VECTOR_ACCEL_SCALE) / unity_speed);
+        uint32_t shaped = (uint32_t)(((uint64_t)position * position) / VECTOR_ACCEL_SCALE);
         uint32_t span = VECTOR_ACCEL_SCALE - min_factor;
-        return (uint16_t)(min_factor +
-                          (uint32_t)(((uint64_t)span * shaped) / VECTOR_ACCEL_SCALE));
+        return (uint16_t)(min_factor + (uint32_t)(((uint64_t)span * shaped) / VECTOR_ACCEL_SCALE));
     }
 
     if (speed >= max_speed) {
@@ -75,8 +94,7 @@ uint16_t vector_accel_compute_factor(const struct vector_accel_config *config, u
 
     uint32_t position = (uint32_t)(((uint64_t)(speed - unity_speed) * VECTOR_ACCEL_SCALE) /
                                    (max_speed - unity_speed));
-    uint32_t shaped =
-        (uint32_t)(((uint64_t)position * position) / VECTOR_ACCEL_SCALE);
+    uint32_t shaped = (uint32_t)(((uint64_t)position * position) / VECTOR_ACCEL_SCALE);
     uint32_t span = max_factor - VECTOR_ACCEL_SCALE;
     return (uint16_t)(VECTOR_ACCEL_SCALE +
                       (uint32_t)(((uint64_t)span * shaped) / VECTOR_ACCEL_SCALE));

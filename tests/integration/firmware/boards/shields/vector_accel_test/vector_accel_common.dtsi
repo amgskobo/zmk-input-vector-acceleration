@@ -1,0 +1,40 @@
+#include <dt-bindings/zmk/matrix_transform.h>
+#include <physical_layouts.dtsi>
+
+/ {
+    chosen {
+        zmk,kscan = &test_kscan;
+        zmk,physical-layout = &test_layout;
+    };
+
+    test_kscan: test_kscan {
+        compatible = "zmk,kscan-mock";
+        rows = <1>;
+        columns = <1>;
+        events = <>;
+    };
+
+    test_transform: test_transform {
+        compatible = "zmk,matrix-transform";
+        rows = <1>;
+        columns = <1>;
+        map = <RC(0,0)>;
+    };
+
+    test_layout: test_layout {
+        compatible = "zmk,physical-layout";
+        display-name = "Test";
+        transform = <&test_transform>;
+        keys = <&key_physical_attrs 100 100 0 0 0 0 0>;
+    };
+
+    firmware_vector_accel: fw_vector_accel {
+        compatible = "zmk,input-processor-vector-acceleration";
+        #input-processor-cells = <0>;
+        min-factor = <500>;
+        max-factor = <3200>;
+        unity-speed = <1200>;
+        max-speed = <6000>;
+        track-remainders;
+    };
+};

@@ -1,0 +1,25 @@
+#include <behaviors.dtsi>
+#include <dt-bindings/zmk/keys.h>
+
+/ {
+    keymap {
+        compatible = "zmk,keymap";
+
+        base {
+            bindings = <&kp A &kp B &kp C &kp D>;
+        };
+    };
+
+    invalid_vector_accel: invalid_vector_accel {
+        compatible = "zmk,input-processor-vector-acceleration";
+        #input-processor-cells = <0>;
+        min-factor = <TEST_MIN_FACTOR>;
+        max-factor = <TEST_MAX_FACTOR>;
+        unity-speed = <TEST_UNITY_SPEED>;
+        max-speed = <TEST_MAX_SPEED>;
+    };
+};
+
+&kscan {
+    events = <>;
+};

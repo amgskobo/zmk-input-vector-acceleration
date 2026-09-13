@@ -1,0 +1,50 @@
+#include <behaviors.dtsi>
+#include <dt-bindings/zmk/keys.h>
+#include <dt-bindings/zmk/kscan_mock.h>
+#include <dt-bindings/zmk/matrix_transform.h>
+#include <physical_layouts.dtsi>
+
+/ {
+    chosen {
+        zmk,physical-layout = &test_layout;
+    };
+
+    test_transform: test_transform {
+        compatible = "zmk,matrix-transform";
+        rows = <2>;
+        columns = <2>;
+        map = <RC(0,0) RC(0,1) RC(1,0) RC(1,1)>;
+    };
+
+    test_layout: test_layout {
+        compatible = "zmk,physical-layout";
+        display-name = "Test";
+        transform = <&test_transform>;
+        keys = <&key_physical_attrs 100 100 0 0 0 0 0
+                &key_physical_attrs 100 100 100 0 0 0 0
+                &key_physical_attrs 100 100 0 100 0 0 0
+                &key_physical_attrs 100 100 100 100 0 0 0>;
+    };
+
+    keymap {
+        compatible = "zmk,keymap";
+
+        base {
+            bindings = <&kp A &kp B &kp C &kp D>;
+        };
+    };
+
+    vector_accel_test: vector_accel_test {
+        compatible = "zmk,input-processor-vector-acceleration";
+        #input-processor-cells = <0>;
+        min-factor = <500>;
+        max-factor = <3200>;
+        unity-speed = <1200>;
+        max-speed = <6000>;
+        track-remainders;
+    };
+};
+
+&kscan {
+    events = <ZMK_MOCK_PRESS(0,0,30000)>;
+};

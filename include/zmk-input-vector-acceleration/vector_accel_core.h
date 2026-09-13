@@ -11,6 +11,14 @@
 #define VECTOR_ACCEL_SCALE 1000U
 #define VECTOR_ACCEL_HISTORY_TIMEOUT_MS 100
 
+/*
+ * Bounds shared by the devicetree BUILD_ASSERTs and the runtime setter. A
+ * value that arrives at runtime cannot be rejected at build time, so both
+ * paths check the same limits through vector_accel_config_valid().
+ */
+#define VECTOR_ACCEL_MIN_FACTOR_FLOOR 100U
+#define VECTOR_ACCEL_MAX_FACTOR_CEILING 20000U
+
 enum vector_accel_axis {
     VECTOR_ACCEL_AXIS_X = 0,
     VECTOR_ACCEL_AXIS_Y = 1,
@@ -32,6 +40,8 @@ struct vector_accel_stream {
     bool have_report_time;
     bool frame_open;
 };
+
+bool vector_accel_config_valid(const struct vector_accel_config *config);
 
 uint32_t vector_accel_abs_i32(int32_t value);
 uint32_t vector_accel_magnitude(int32_t x, int32_t y);

@@ -3,11 +3,22 @@ name: Test
 on:
   push:
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   core:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
-      - name: Build and run fixed-point core tests
-        run: ./tests/run.sh
+      - name: Run fixed-point and stream-state contract tests
+        run: bash ./tests/run-docker.sh
+      - name: Build against upstream ZMK and the Studio integration
+        run: bash ./tests/run-integration-docker.sh
