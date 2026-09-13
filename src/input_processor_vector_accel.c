@@ -123,7 +123,6 @@ static int vector_accel_handle_event(const struct device *dev, struct input_even
     ARG_UNUSED(param2);
 
     struct vector_accel_data *data = dev->data;
-    struct vector_accel_config config = vector_accel_config_snapshot(data);
     size_t stream_index;
     struct vector_accel_stream *stream = stream_for_event(data, state, &stream_index);
     bool is_x = event->type == INPUT_EV_REL && event->code == INPUT_REL_X;
@@ -141,6 +140,8 @@ static int vector_accel_handle_event(const struct device *dev, struct input_even
     }
 
     if (event->sync && stream->frame_open) {
+        struct vector_accel_config config = vector_accel_config_snapshot(data);
+
         vector_accel_stream_finish_frame(stream, &config, now_ms);
     }
 
