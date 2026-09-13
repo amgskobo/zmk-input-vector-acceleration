@@ -1,5 +1,7 @@
 # ZMK Input Vector Acceleration
 
+[![Test](https://github.com/amgskobo/zmk-input-vector-acceleration/actions/workflows/test.yml/badge.svg)](https://github.com/amgskobo/zmk-input-vector-acceleration/actions/workflows/test.yml)
+
 `zmk-input-vector-acceleration` は、相対ポインター移動用の ZMK 入力プロセッサーです。
 X/Y を別々に加速せず、X/Y の合成ベクトルから1つの倍率を求めて両軸へ同じ倍率を
 適用します。そのため、斜め移動の方向が軸ごとの非線形加速によって変形しません。
@@ -87,18 +89,104 @@ input-processors = <&zip_absolute_to_relative>,
 曲線は `min-factor` から1.0倍までが二次曲線、その後 `max-factor` までが二次曲線です。
 値の関係が不正な場合は、理由を示してファームウェアのビルドを停止します。
 
+## 実行時設定
+
+devicetree の値は既定値です。`vector_accel_runtime.h` を使うと、キーボードを
+使用したままカーブを変更できます。
+
+```c
+#include <zmk-input-vector-acceleration/vector_accel_runtime.h>
+
+struct vector_accel_config config;
+
+vector_accel_get_config(dev, &config);
+config.max_factor = 4000;
+vector_accel_set_config(dev, &config);   /* -EINVAL のときは何も変更しない */
+```
+
+`vector_accel_set_config()` は、devicetree の `BUILD_ASSERT` と同じ境界を
+純粋コアの `vector_accel_config_valid()` で確認します。ビルド時に弾かれる値は
+実行時にも弾かれ、プロセッサは直前の設定のまま動き続けます。
+
+`CONFIG_SETTINGS` が有効で、後述の custom-settings 連携が無効な場合、
+`vector_accel_set_config()` で変更した値は `vaccel/<インスタンス>` キーに保存され、
+再起動後も残ります。保存値は各プロセッサが devicetree の既定値を読み込んだ後に
+適用されます。構造体と一致しない値や境界外の値は無視されるため、プロセッサは
+使用可能な devicetree のカーブを維持します。
+
+custom-settings 連携が有効な場合は、そのレジストリだけが永続化を担当します。
+レジストリ経由の変更はノード名ベースのキーへ保存され、同じ runtime API を通して
+適用されます。`vector_accel_set_config()` を直接呼んだ場合も実行中のカーブは
+変わりますが、レジストリと食い違う第2の保存値は作りません。
+
+### Studio クライアントから編集する
+
+`CONFIG_ZMK_INPUT_VECTOR_ACCELERATION_CUSTOM_SETTINGS=y` にすると、
+4 つの値が [zmk-feature-custom-settings](https://github.com/cormoran/zmk-feature-custom-settings)
+に登録されます。これはモジュール横断のレジストリなので、それを描画する Studio
+クライアントがこの値も描画します。宣言した型と範囲がウィジェットに反映される
+ため、モジュール専用のページは不要です。既定値は devicetree の値です。
+設定は `amgskobo__accel` subsystem の下に表示されます。subsystem 名も永続化される
+設定名の一部なので、その長さだけ各ノード名に使える領域が減ります。
+
+キーは、そのノードの devicetree 名にフィールドを続けた形です。
+
+```
+vector_accel.min_factor
+vector_accel.max_factor
+padstick_vector_accel.min_factor
+padstick_vector_accel.max_factor
+```
+
+ノード名を使うのは意図的です。チェーンを描画するビューは、各リスナーの
+プロセッサを devicetree からたどって段ごとに `const struct device *` を得ます。
+その `->name` は `DEVICE_DT_NAME()`、すなわち `DT_NODE_FULL_NAME()` であり、
+このキーを組み立てている文字列と同一です。したがって、ある段の設定とは
+「その device 名で始まるキー」そのものであり、そのために登録する仕組みも、
+モジュール間の取り決めも、基板側が devicetree に書く文字列も要りません。
+
+手書きの識別子を使わないため、最も一般的な衝突は避けられます。ただし
+`DT_NODE_FULL_NAME()` はノード自身の名前であってパスではないため、devicetree が
+一意性を保証するのは同じ親を持つノード間だけです。別の親の下に同名ノードがある
+場合はキーが衝突し得るため、モジュールは起動時に重複を検出してログへ記録します。
+
+ノードを rename すると以前の保存値は孤児になります。また、RPCキーの48バイト
+上限と、subsystemを含む永続化名の64バイト上限を両方ともビルド時に確認します。
+長すぎる名前は切り詰めず、原因となるノード名を示してビルドを停止します。
+この連携を有効にする場合、ノード名は19文字以内にしてください
+（例: `pointer_accel`、`stick_accel`）。
+
+このオプションには、カスタム Studio RPC プロトコルを持つ patched ZMK と、
+`config/west.yml` の `zmk-feature-custom-settings` が必要です。既定は無効で、
+本家 ZMK 向けのビルドでは一切コンパイルされません。`CONFIG_SETTINGS` が有効なら、
+モジュールは自前の保存領域を使います。
+
+`ZMK_CUSTOM_SETTING_RANGE_INT32` は devicetree の `BUILD_ASSERT` と同じ境界を
+宣言するので、クライアント側で不正な値を送る前に弾けます。ただし
+「max-speed は unity-speed より大きい」という関係は表現できないため、4 値は
+まとめて適用され、`vector_accel_config_valid()` が最終判定をします。成立しない
+組み合わせは適用されず、直前のカーブが動き続けます。
+
 ## テスト
 
-計算とストリーム状態のコアはプラットフォーム非依存です。C コンパイラーがある環境で
-次を実行します。
+計算とストリーム状態のコアはプラットフォーム非依存です。ZMKビルドと同系統の
+コンテナーで、optimized、sanitizer、32-bitの契約テストを実行します。
 
-```sh
-./tests/run.sh
+```bash
+bash ./tests/run-docker.sh
 ```
 
 テスト対象は、ベクトルの対称性、曲線の上限・下限と単調性、固定小数点の端数、整数の
 飽和、無操作時のリセット、1レポート遅延、入力ストリーム間の分離です。
 
+統合テストでは、upstream ZMKに対する基本driver、DYA forkに対するcustom-settings
+adapter、`native_sim`上のruntime APIと永続化、不正なdevicetree値の拒否、ARMボード
+向けstandalone／splitファームウェアを確認します。
+
+```bash
+bash ./tests/run-integration-docker.sh
+```
+
 ## ライセンス
 
-MIT
+[MIT](LICENSE)

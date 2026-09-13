@@ -1,0 +1,8 @@
+config SHIELD_VECTOR_ACCEL_TEST
+    def_bool $(shields_list_contains,vector_accel_test)
+
+config SHIELD_VECTOR_ACCEL_SPLIT_LEFT
+    def_bool $(shields_list_contains,vector_accel_split_left)
+
+config SHIELD_VECTOR_ACCEL_SPLIT_RIGHT
+    def_bool $(shields_list_contains,vector_accel_split_right)

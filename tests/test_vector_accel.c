@@ -84,8 +84,7 @@ static void test_report_state(void) {
 
     int32_t rem_x = 0;
     int32_t rem_y = 0;
-    uint16_t factor =
-        vector_accel_stream_begin_axis(&stream, VECTOR_ACCEL_AXIS_X, 1020);
+    uint16_t factor = vector_accel_stream_begin_axis(&stream, VECTOR_ACCEL_AXIS_X, 1020);
     assert(factor == 3200U);
     assert(vector_accel_scale_value(100, factor, &rem_x) == 320);
     assert(vector_accel_scale_value(10, factor, &rem_y) == 32);
@@ -145,12 +144,61 @@ static void test_invalid_axis_is_ignored(void) {
     struct vector_accel_stream stream;
     vector_accel_stream_init(&stream);
 
-    enum vector_accel_axis invalid = (enum vector_accel_axis)-1;
+    enum vector_accel_axis invalid = (enum vector_accel_axis) - 1;
     assert(vector_accel_stream_begin_axis(&stream, invalid, 10) == 1000U);
     vector_accel_stream_add(&stream, invalid, 100);
     assert(!stream.frame_open);
     assert(stream.frame_delta[VECTOR_ACCEL_AXIS_X] == 0);
     assert(stream.frame_delta[VECTOR_ACCEL_AXIS_Y] == 0);
+}
+
+/*
+ * The devicetree BUILD_ASSERTs cannot police a value that arrives at runtime,
+ * so the setter leans on this function instead. Every bound it rejects here is
+ * one the build would have rejected.
+ */
+static void test_config_validation(void) {
+    const struct vector_accel_config good = {
+        .min_factor = 500,
+        .max_factor = 3200,
+        .unity_speed = 1200,
+        .max_speed = 6000,
+    };
+    struct vector_accel_config probe;
+
+    assert(vector_accel_config_valid(&good));
+    assert(!vector_accel_config_valid(NULL));
+
+    probe = good;
+    probe.min_factor = VECTOR_ACCEL_MIN_FACTOR_FLOOR - 1U;
+    assert(!vector_accel_config_valid(&probe));
+
+    probe = good;
+    probe.min_factor = VECTOR_ACCEL_SCALE + 1U;
+    assert(!vector_accel_config_valid(&probe));
+
+    probe = good;
+    probe.max_factor = VECTOR_ACCEL_SCALE - 1U;
+    assert(!vector_accel_config_valid(&probe));
+
+    probe = good;
+    probe.max_factor = VECTOR_ACCEL_MAX_FACTOR_CEILING + 1U;
+    assert(!vector_accel_config_valid(&probe));
+
+    probe = good;
+    probe.unity_speed = 0U;
+    assert(!vector_accel_config_valid(&probe));
+
+    /* max-speed must stay above unity-speed, including when they are equal. */
+    probe = good;
+    probe.max_speed = probe.unity_speed;
+    assert(!vector_accel_config_valid(&probe));
+
+    /* The extremes the build would accept have to remain acceptable. */
+    probe = good;
+    probe.min_factor = VECTOR_ACCEL_MIN_FACTOR_FLOOR;
+    probe.max_factor = VECTOR_ACCEL_MAX_FACTOR_CEILING;
+    assert(vector_accel_config_valid(&probe));
 }
 
 int main(void) {
@@ -162,6 +210,7 @@ int main(void) {
     test_independent_streams();
     test_incomplete_frame_recovery();
     test_invalid_axis_is_ignored();
+    test_config_validation();
     puts("vector acceleration tests: PASS");
     return 0;
 }

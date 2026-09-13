@@ -1,0 +1,5 @@
+#define TEST_MIN_FACTOR 500
+#define TEST_MAX_FACTOR 20001
+#define TEST_UNITY_SPEED 1200
+#define TEST_MAX_SPEED 6000
+#include "../fixture.dtsi"

@@ -11,3 +11,25 @@ config ZMK_INPUT_PROCESSOR_VECTOR_ACCELERATION
       Enables report-based, fixed-point acceleration for relative X/Y pointer
       events. One common gain is applied to both axes so acceleration does not
       change the direction of motion.
+
+if ZMK_INPUT_PROCESSOR_VECTOR_ACCELERATION
+
+config ZMK_INPUT_VECTOR_ACCELERATION_CUSTOM_SETTINGS
+    bool "Publish the curve through zmk-feature-custom-settings"
+    # Not ZMK_CUSTOM_SETTINGS: registering a subsystem needs zmk/studio/custom.h,
+    # which includes ZMK's nanopb-generated proto/zmk/custom.pb.h. That is only
+    # generated when the Studio RPC is being built, so the base registry alone
+    # would let this be selected and then fail on a missing header.
+    depends on ZMK_CUSTOM_SETTINGS_STUDIO_RPC
+    help
+      Registers the four curve values in the cross-module custom settings
+      registry, so a Studio client lists and edits them with no page of its
+      own: the declared type and range drive the widget. custom-settings then
+      owns persistence, and this module's own settings writes are compiled
+      out so there is one owner. Needs zmk-feature-custom-settings, and so
+      the patched ZMK that carries the custom Studio RPC protocol; with this
+      off, which is the default and what an upstream ZMK build gets, none of
+      it is compiled and the module uses its own store when CONFIG_SETTINGS
+      is enabled.
+
+endif
