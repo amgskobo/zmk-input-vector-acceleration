@@ -159,7 +159,7 @@ hand — though not every way, because `DT_NODE_FULL_NAME` is a node's own name
 and not its path, so devicetree keeps it unique only among siblings. The module
 checks for a duplicate once at startup and logs it. Renaming a node orphans its
 stored value. Both the 48-byte RPC key and the 64-byte persisted settings name
-are checked at build time, so a too-long name fails rather than truncating. In
+are checked at build time, so a too-long name fails rather than truncating. If
 this integration is enabled, keep node names to 19 characters or fewer
 (`pointer_accel`, `stick_accel`).
 
