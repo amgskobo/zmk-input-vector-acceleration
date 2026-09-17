@@ -4,6 +4,7 @@
  */
 
 #include <errno.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 #include <zephyr/device.h>
@@ -83,6 +84,17 @@ static void process(struct input_event *event, int16_t *remainder) {
                     ZMK_INPUT_PROC_CONTINUE);
 }
 
+static void process_with_index(struct input_event *event, uint8_t input_device_index,
+                               int16_t *remainder) {
+    struct zmk_input_processor_state state = {
+        .input_device_index = input_device_index,
+        .remainder = remainder,
+    };
+
+    __ASSERT_NO_MSG(zmk_input_processor_handle_event(accel, event, 0, 0, &state) ==
+                    ZMK_INPUT_PROC_CONTINUE);
+}
+
 static void run_tests(void *p1, void *p2, void *p3) {
     ARG_UNUSED(p1);
     ARG_UNUSED(p2);
@@ -104,6 +116,12 @@ static void run_tests(void *p1, void *p2, void *p3) {
     __ASSERT_NO_MSG(vector_accel_set_config(accel, &config) == -EINVAL);
     __ASSERT_NO_MSG(vector_accel_get_config(accel, &config) == 0);
     __ASSERT_NO_MSG(same_config(&config, &defaults));
+
+    int16_t invalid_remainder = 17;
+    event = rel_x(123, true);
+    process_with_index(&event, UINT8_MAX, &invalid_remainder);
+    __ASSERT_NO_MSG(event.value == 123);
+    __ASSERT_NO_MSG(invalid_remainder == 17);
 
     event = rel_x(100, true);
     process(&event, &remainder);

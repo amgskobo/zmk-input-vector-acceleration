@@ -9,6 +9,8 @@ direction instead of being distorted by independent per-axis acceleration.
 
 The implementation uses integer and fixed-point arithmetic only. State and
 fractional remainders are independent for each input listener/device stream.
+An invalid runtime listener index is passed through and never aliases stream
+zero.
 It does not inspect layers and requires no notification from a keyboard,
 trackpad driver, or keymap behavior.
 
@@ -126,6 +128,10 @@ persistence owner instead. Changes made through the registry persist under its
 node-based keys and are then applied through the same runtime API. A direct
 call to `vector_accel_set_config()` still changes the running curve, but does
 not create a second stored copy that could disagree with the registry.
+
+When the module owns persistence, its debounced flash save runs on ZMK's
+low-priority work queue rather than Zephyr's shared system work queue. A curve
+edit therefore cannot hold up Bluetooth, split, watchdog, or device-PM work.
 
 ### Editing from a Studio client
 
