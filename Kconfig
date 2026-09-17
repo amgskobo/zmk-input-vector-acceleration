@@ -1,3 +1,4 @@
+# Copyright (c) 2026 amgskobo
 # SPDX-License-Identifier: MIT
 
 DT_COMPAT_ZMK_INPUT_PROCESSOR_VECTOR_ACCELERATION := zmk,input-processor-vector-acceleration
@@ -7,6 +8,7 @@ config ZMK_INPUT_PROCESSOR_VECTOR_ACCELERATION
     default $(dt_compat_enabled,$(DT_COMPAT_ZMK_INPUT_PROCESSOR_VECTOR_ACCELERATION))
     depends on ZMK_POINTING
     depends on INPUT
+    select ZMK_LOW_PRIORITY_WORK_QUEUE if SETTINGS && !ZMK_INPUT_VECTOR_ACCELERATION_CUSTOM_SETTINGS
     help
       Enables report-based, fixed-point acceleration for relative X/Y pointer
       events. One common gain is applied to both axes so acceleration does not

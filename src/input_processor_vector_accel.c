@@ -17,6 +17,7 @@
 #include <zephyr/sys/util.h>
 
 #include <drivers/input_processor.h>
+#include <zmk/workqueue.h>
 
 /*
  * When the custom-settings integration is compiled in it owns persistence, so
@@ -74,12 +75,16 @@ static void vector_accel_config_replace(struct vector_accel_data *data,
     k_spin_unlock(&data->config_lock, key);
 }
 
-static struct vector_accel_stream *stream_for_event(struct vector_accel_data *data,
-                                                    struct zmk_input_processor_state *state,
-                                                    size_t *stream_index) {
-    size_t index = 0U;
+static struct vector_accel_stream *stream_for_event(
+    struct vector_accel_data *data, const struct zmk_input_processor_state *state,
+    size_t *stream_index) {
+    size_t index;
 
-    if (state != NULL && state->input_device_index < VECTOR_ACCEL_STREAM_COUNT) {
+    if (state == NULL) {
+        index = 0U;
+    } else if (state->input_device_index >= VECTOR_ACCEL_STREAM_COUNT) {
+        return NULL;
+    } else {
         index = state->input_device_index;
     }
 
@@ -125,6 +130,10 @@ static int vector_accel_handle_event(const struct device *dev, struct input_even
     struct vector_accel_data *data = dev->data;
     size_t stream_index;
     struct vector_accel_stream *stream = stream_for_event(data, state, &stream_index);
+
+    if (stream == NULL) {
+        return ZMK_INPUT_PROC_CONTINUE;
+    }
     bool is_x = event->type == INPUT_EV_REL && event->code == INPUT_REL_X;
     bool is_y = event->type == INPUT_EV_REL && event->code == INPUT_REL_Y;
     int64_t now_ms = 0;
@@ -299,7 +308,8 @@ static void vector_accel_save_work_handler(struct k_work *work) {
 }
 
 static int vector_accel_schedule_save(struct vector_accel_data *data) {
-    return MIN(0, k_work_reschedule(&data->save_work, K_MSEC(CONFIG_ZMK_SETTINGS_SAVE_DEBOUNCE)));
+    return MIN(0, k_work_reschedule_for_queue(zmk_workqueue_lowprio_work_q(), &data->save_work,
+                                              K_MSEC(CONFIG_ZMK_SETTINGS_SAVE_DEBOUNCE)));
 }
 
 static int vector_accel_settings_load(void) {
