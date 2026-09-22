@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 amgskobo
+ * SPDX-License-Identifier: MIT
+ */
+
 #define TEST_MIN_FACTOR 1001
 #define TEST_MAX_FACTOR 3200
 #define TEST_UNITY_SPEED 1200

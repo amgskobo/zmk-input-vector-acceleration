@@ -2,6 +2,8 @@
 
 [![Test](https://github.com/amgskobo/zmk-input-vector-acceleration/actions/workflows/test.yml/badge.svg)](https://github.com/amgskobo/zmk-input-vector-acceleration/actions/workflows/test.yml)
 
+[English](README.md)
+
 `zmk-input-vector-acceleration` は、相対ポインター移動用の ZMK 入力プロセッサーです。
 X/Y を別々に加速せず、X/Y の合成ベクトルから1つの倍率を求めて両軸へ同じ倍率を
 適用します。そのため、斜め移動の方向が軸ごとの非線形加速によって変形しません。

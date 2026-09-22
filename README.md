@@ -2,6 +2,8 @@
 
 [![Test](https://github.com/amgskobo/zmk-input-vector-acceleration/actions/workflows/test.yml/badge.svg)](https://github.com/amgskobo/zmk-input-vector-acceleration/actions/workflows/test.yml)
 
+[日本語](README_JA.md)
+
 `zmk-input-vector-acceleration` is a ZMK input processor for relative pointer
 motion. It calculates one acceleration factor from the combined X/Y vector and
 applies that same factor to both axes. Diagonal motion therefore keeps its

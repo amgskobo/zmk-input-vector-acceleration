@@ -1,3 +1,6 @@
+# Copyright (c) 2026 amgskobo
+# SPDX-License-Identifier: MIT
+
 zephyr_library()
 
 # ZMK's input-processor API is an application header, not a Zephyr header.
