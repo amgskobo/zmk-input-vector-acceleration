@@ -77,7 +77,8 @@ uint32_t vector_accel_magnitude(int32_t x, int32_t y) {
     uint32_t minor = abs_x > abs_y ? abs_y : abs_x;
     uint64_t approximation = (uint64_t)major + (((uint64_t)minor * 3U) >> 3);
 
-    return approximation > UINT32_MAX ? UINT32_MAX : (uint32_t)approximation;
+    /* |x| and |y| are at most 2^31, so this is at most 11/8 * 2^31. */
+    return (uint32_t)approximation;
 }
 
 uint32_t vector_accel_speed(uint32_t magnitude, uint32_t interval_ms) {
@@ -110,7 +111,9 @@ uint32_t vector_accel_speed(uint32_t magnitude, uint32_t interval_ms) {
     }
 
     uint64_t speed = ((uint64_t)magnitude * 1000U) / interval_ms;
-    return speed > UINT32_MAX ? UINT32_MAX : (uint32_t)speed;
+    /* This fallback only runs for intervals above UINT32_MAX / 1000 + 1,
+     * so the quotient is below 1,000,000 even at maximum magnitude. */
+    return (uint32_t)speed;
 }
 
 uint16_t vector_accel_compute_factor(const struct vector_accel_config *config, uint32_t speed) {
@@ -210,7 +213,8 @@ uint16_t vector_accel_stream_begin_axis(struct vector_accel_stream *stream,
      * proves that the old report is incomplete, so discard it before it can be
      * combined with the new report.
      */
-    if (stream->frame_open && axis_bit != 0U && (stream->seen_axes & axis_bit) != 0U) {
+    /* The invalid-axis guard above guarantees axis_bit is either 1 or 2. */
+    if (stream->frame_open && (stream->seen_axes & axis_bit) != 0U) {
         stream->frame_delta[VECTOR_ACCEL_AXIS_X] = 0;
         stream->frame_delta[VECTOR_ACCEL_AXIS_Y] = 0;
         stream->seen_axes = 0U;

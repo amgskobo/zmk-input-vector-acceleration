@@ -185,7 +185,7 @@ the previous curve running rather than half-applying.
 ## Testing
 
 The calculation and stream-state core is platform independent. Run its
-optimized, sanitizer, and 32-bit contracts in the same container family as a
+optimized, sanitizer, coverage, and 32-bit contracts in the same container family as a
 ZMK build:
 
 ```bash
@@ -195,6 +195,9 @@ bash ./tests/run-docker.sh
 The test suite covers vector symmetry, curve limits and monotonicity,
 fixed-point remainders, integer saturation, inactivity reset, one-report
 timing, and isolation between input streams.
+CI requires 100% line and branch coverage of `vector_accel_core.c`; the
+Zephyr-facing adapter is tested by integration builds, not included in that
+percentage.
 
 The integration suite builds the base driver against upstream ZMK, builds and
 runs the optional custom-settings adapter against the DYA fork, exercises the

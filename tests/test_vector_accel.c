@@ -353,6 +353,36 @@ static void test_config_validation(void) {
     assert(vector_accel_config_valid(&probe));
 }
 
+static void test_unusual_input_guards(void) {
+    assert(vector_accel_speed(8589935U, 2U) == UINT32_MAX);
+    struct vector_accel_config config = test_config;
+    config.min_factor = 0U;
+    config.max_factor = UINT16_MAX;
+    assert(vector_accel_compute_factor(&config, 0U) == VECTOR_ACCEL_MIN_FACTOR_FLOOR);
+    assert(vector_accel_compute_factor(&config, UINT32_MAX) == VECTOR_ACCEL_MAX_FACTOR_CEILING);
+    config.unity_speed = 0U;
+    assert(vector_accel_compute_factor(&config, 0U) == VECTOR_ACCEL_MIN_FACTOR_FLOOR);
+
+    struct vector_accel_stream stream;
+    vector_accel_stream_init(&stream);
+    stream.factor = 0U;
+    assert(vector_accel_stream_begin_axis(&stream, (enum vector_accel_axis)-1, 0) == 1000U);
+    assert(vector_accel_stream_begin_axis(&stream, VECTOR_ACCEL_AXIS_X, 0) == 1000U);
+    stream.factor = 0U;
+    assert(vector_accel_stream_begin_axis(&stream, VECTOR_ACCEL_AXIS_Y, 0) == 1000U);
+    vector_accel_stream_finish_frame(&stream, &test_config, 0);
+    assert(vector_accel_stream_begin_axis(&stream, VECTOR_ACCEL_AXIS_X, 0) == 1000U);
+    vector_accel_stream_finish_frame(&stream, &test_config, 0);
+    vector_accel_stream_finish_frame(&stream, &test_config, 10);
+    assert(stream.have_report_time && !stream.frame_open);
+    vector_accel_stream_add(&stream, VECTOR_ACCEL_AXIS_X, INT32_MAX);
+    vector_accel_stream_add(&stream, VECTOR_ACCEL_AXIS_X, 1);
+    assert(stream.frame_delta[VECTOR_ACCEL_AXIS_X] == INT32_MAX);
+    vector_accel_stream_add(&stream, VECTOR_ACCEL_AXIS_Y, INT32_MIN);
+    vector_accel_stream_add(&stream, VECTOR_ACCEL_AXIS_Y, -1);
+    assert(stream.frame_delta[VECTOR_ACCEL_AXIS_Y] == INT32_MIN);
+}
+
 int main(void) {
     test_absolute_value();
     test_magnitude();
@@ -364,6 +394,7 @@ int main(void) {
     test_incomplete_frame_recovery();
     test_invalid_axis_is_ignored();
     test_config_validation();
+    test_unusual_input_guards();
     puts("vector acceleration tests: PASS");
     return 0;
 }
