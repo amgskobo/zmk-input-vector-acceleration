@@ -177,7 +177,7 @@ padstick_vector_accel.max_factor
 ## テスト
 
 計算とストリーム状態のコアはプラットフォーム非依存です。ZMKビルドと同系統の
-コンテナーで、optimized、sanitizer、32-bitの契約テストを実行します。
+コンテナーで、optimized、sanitizer、カバレッジ、32-bitの契約テストを実行します。
 
 ```bash
 bash ./tests/run-docker.sh
@@ -185,6 +185,8 @@ bash ./tests/run-docker.sh
 
 テスト対象は、ベクトルの対称性、曲線の上限・下限と単調性、固定小数点の端数、整数の
 飽和、無操作時のリセット、1レポート遅延、入力ストリーム間の分離です。
+CIは `vector_accel_core.c` の行・分岐100%を要求します。Zephyr側adapter全体の
+カバレッジではありません。
 
 統合テストでは、upstream ZMKに対する基本driver、DYA forkに対するcustom-settings
 adapter、`native_sim`上のruntime APIと永続化、不正なdevicetree値の拒否、ARMボード
