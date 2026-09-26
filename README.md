@@ -22,7 +22,9 @@ For each synchronized input report the processor:
 
 1. Collects all relative X and Y deltas in the report.
 2. Approximates the vector magnitude as `max(|x|, |y|) + 3/8 * min(|x|, |y|)`.
-3. Converts it to counts per second from the report interval.
+3. Converts it to counts per second over the last few reports: the travel and
+   the time between reports are each kept as a sum that holds half of its old
+   value as each report joins it, and speed is one over the other.
 4. Calculates a quadratic fixed-point gain.
 5. Uses that common gain for both axes of the next report.
 
@@ -32,6 +34,14 @@ buffering and re-emitting the whole report. Reusing the previous report's gain
 keeps the processor small, preserves event order, and avoids a work queue or
 proxy input device. Establishing an interval takes two reports, so the first
 two reports at startup and after more than 100 ms of inactivity use 1.0x gain.
+
+One report's own interval is not a measure of speed when a link sits between
+the source and this processor. A split peripheral's reports cross at Bluetooth
+connection events, so reports sent every 10 ms reach the central 7.5 ms, 15 ms
+or under a millisecond apart, and read one at a time they swung a steady
+stroke's gain between 1.0x and the maximum. Over the sums, the arrival times
+of the reports in between cancel out; a report in the same millisecond as the
+last one simply joins them.
 
 ZMK selects a layer override separately for each event. If a layer changes
 between X and the synchronized Y event, the processor may miss the sync that
@@ -193,11 +203,18 @@ bash ./tests/run-docker.sh
 ```
 
 The test suite covers vector symmetry, curve limits and monotonicity,
-fixed-point remainders, integer saturation, inactivity reset, one-report
-timing, and isolation between input streams.
-CI requires 100% line and branch coverage of `vector_accel_core.c`; the
-Zephyr-facing adapter is tested by integration builds, not included in that
-percentage.
+fixed-point remainders, integer saturation, inactivity reset, one-report timing,
+and isolation between input streams. The same command then lifts every function
+of the driver and of the custom-settings adapter into the stubbed harnesses in
+`tests/runtime/`: event routing and the per-stream and per-listener remainders,
+the runtime API, and both persistence builds -- the driver saving its own values
+through a debounced work item and loading them back, and the RAM-only driver
+used when custom-settings owns persistence -- plus the adapter's readers and
+duplicate-key check. CI requires 100% line and branch coverage of
+`vector_accel_core.c` and of each lifted function. The apply step that turns
+stored settings into driver calls is lifted with its macro too, and the runner
+fails if any function in the sources has no gate. Devicetree instantiation
+itself is left to the integration suite.
 
 The integration suite builds the base driver against upstream ZMK, builds and
 runs the optional custom-settings adapter against the DYA fork, exercises the

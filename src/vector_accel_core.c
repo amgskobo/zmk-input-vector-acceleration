@@ -30,6 +30,15 @@ static int32_t saturating_add_i32(int32_t left, int32_t right) {
     return (int32_t)sum;
 }
 
+static uint32_t saturating_add_u32(uint32_t left, uint32_t right) {
+    return left > UINT32_MAX - right ? UINT32_MAX : left + right;
+}
+
+/* What a history sum keeps as the next frame joins it. */
+static uint32_t history_decay(uint32_t sum) {
+    return sum - (sum >> VECTOR_ACCEL_HISTORY_DECAY_SHIFT);
+}
+
 static uint32_t scale_ratio(uint32_t numerator, uint32_t denominator) {
     /*
      * Every caller asks for a value scaled by VECTOR_ACCEL_SCALE. Pointer
@@ -224,7 +233,9 @@ uint16_t vector_accel_stream_begin_axis(struct vector_accel_stream *stream,
     if (!stream->frame_open) {
         stream->frame_open = true;
 
-        if (!stream->have_report_time || now_ms <= stream->last_report_time_ms ||
+        /* A frame in the same millisecond as the last one is part of a burst,
+         * not the start of a new stroke: it keeps the factor. */
+        if (!stream->have_report_time || now_ms < stream->last_report_time_ms ||
             now_ms - stream->last_report_time_ms > VECTOR_ACCEL_HISTORY_TIMEOUT_MS) {
             stream->factor = VECTOR_ACCEL_SCALE;
         }
@@ -250,18 +261,21 @@ void vector_accel_stream_finish_frame(struct vector_accel_stream *stream,
         return;
     }
 
-    if (stream->have_report_time && now_ms > stream->last_report_time_ms) {
-        int64_t elapsed_ms = now_ms - stream->last_report_time_ms;
+    if (stream->have_report_time && now_ms >= stream->last_report_time_ms &&
+        now_ms - stream->last_report_time_ms <= VECTOR_ACCEL_HISTORY_TIMEOUT_MS) {
+        uint32_t magnitude = vector_accel_magnitude(stream->frame_delta[VECTOR_ACCEL_AXIS_X],
+                                                    stream->frame_delta[VECTOR_ACCEL_AXIS_Y]);
 
-        if (elapsed_ms <= VECTOR_ACCEL_HISTORY_TIMEOUT_MS) {
-            uint32_t magnitude = vector_accel_magnitude(stream->frame_delta[VECTOR_ACCEL_AXIS_X],
-                                                        stream->frame_delta[VECTOR_ACCEL_AXIS_Y]);
-            uint32_t speed = vector_accel_speed(magnitude, (uint32_t)elapsed_ms);
-            stream->factor = vector_accel_compute_factor(config, speed);
-        } else {
-            stream->factor = VECTOR_ACCEL_SCALE;
-        }
+        stream->history_magnitude =
+            saturating_add_u32(history_decay(stream->history_magnitude), magnitude);
+        stream->history_span_ms = history_decay(stream->history_span_ms) +
+                                  (uint32_t)(now_ms - stream->last_report_time_ms);
+        stream->factor = vector_accel_compute_factor(
+            config, vector_accel_speed(stream->history_magnitude, stream->history_span_ms));
     } else {
+        /* No history, or too old to describe this stroke: start it at unity. */
+        stream->history_magnitude = 0U;
+        stream->history_span_ms = 0U;
         stream->factor = VECTOR_ACCEL_SCALE;
     }
 
