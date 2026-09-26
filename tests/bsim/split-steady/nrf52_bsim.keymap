@@ -1,0 +1,36 @@
+/*
+ * Copyright (c) 2026 amgskobo
+ * SPDX-License-Identifier: MIT
+ *
+ * A pointing device on the peripheral moves at one steady speed, 3000
+ * counts/s, and its frames reach the central 7.5 ms, 15 ms or under a
+ * millisecond apart as the split link carries them. The gain must follow the
+ * speed, not the arrival times: 1.4x here, so (24, 18) should come out near
+ * (34, 25) once the first two frames have gone by at 1.0x.
+ */
+
+#include <behaviors.dtsi>
+#include <dt-bindings/zmk/keys.h>
+
+#include "shared.dtsi"
+
+&kscan {
+    /delete-property/ exit-after;
+    events = <>;
+};
+
+&split_listener {
+    status = "okay";
+};
+
+/ {
+    keymap {
+        compatible = "zmk,keymap";
+
+        default_layer {
+            bindings = <
+            &kp A &kp B
+            &kp C &kp D>;
+        };
+    };
+};
