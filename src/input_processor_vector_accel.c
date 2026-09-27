@@ -88,9 +88,7 @@ static struct vector_accel_stream *stream_for_event(
         index = state->input_device_index;
     }
 
-    if (stream_index != NULL) {
-        *stream_index = index;
-    }
+    *stream_index = index;
     return &data->streams[index];
 }
 
@@ -232,10 +230,6 @@ static int vector_accel_settings_store(int index, const struct vector_accel_conf
     char key[sizeof(VECTOR_ACCEL_SETTINGS_ROOT) + 12];
 
     (void)snprintf(key, sizeof(key), VECTOR_ACCEL_SETTINGS_ROOT "/%d", index);
-
-    if (config == NULL) {
-        return settings_delete(key);
-    }
 
     return settings_save_one(key, config, sizeof(*config));
 }

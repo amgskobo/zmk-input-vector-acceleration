@@ -26,7 +26,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
-      - name: Run fixed-point and stream-state contract tests
+      - name: Run the core contract tests and the driver and adapter coverage gates
         run: bash ./tests/run-docker.sh
       - name: Build against upstream ZMK and the Studio integration
         run: bash ./tests/run-integration-docker.sh
