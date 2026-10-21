@@ -32,7 +32,10 @@
 #include <zmk-input-vector-acceleration/vector_accel_core.h>
 #include <zmk-input-vector-acceleration/vector_accel_runtime.h>
 
-LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
+#ifndef CONFIG_ZMK_INPUT_VECTOR_ACCELERATION_LOG_LEVEL
+#define CONFIG_ZMK_INPUT_VECTOR_ACCELERATION_LOG_LEVEL 3
+#endif
+LOG_MODULE_REGISTER(zmk_input_vector_acceleration_input_processor_vector_accel_custom_settings, CONFIG_ZMK_INPUT_VECTOR_ACCELERATION_LOG_LEVEL);
 
 static bool vector_accel_namespace_handler(const zmk_custom_CallRequest *request,
                                            pb_callback_t *encode_response);
@@ -151,11 +154,17 @@ static bool read_uint16(const struct zmk_custom_setting *setting, uint16_t *out)
 static void vector_accel_apply_settings(void) { DT_INST_FOREACH_STATUS_OKAY(VECTOR_ACCEL_APPLY) }
 
 static int vector_accel_settings_event_cb(const zmk_event_t *eh) {
-    ARG_UNUSED(eh);
+    const struct zmk_custom_setting_changed *changed = as_zmk_custom_setting_changed(eh);
+
+    if (changed != NULL &&
+        strcmp(changed->setting->custom_subsystem_id,
+               ZMK_INPUT_VECTOR_ACCELERATION_SUBSYSTEM) != 0) {
+        return ZMK_EV_EVENT_BUBBLE;
+    }
 
     /*
-     * Both subscribed events mean the same thing here -- some stored value may
-     * now differ from what the processor is running -- and re-reading every
+     * Initialization or a change to our settings may make the running curve
+     * differ from stored values. Re-reading every
      * instance is cheaper than working out which one moved.
      */
     vector_accel_apply_settings();

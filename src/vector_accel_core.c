@@ -207,6 +207,25 @@ void vector_accel_stream_init(struct vector_accel_stream *stream) {
     };
 }
 
+static bool recent_report_interval(const struct vector_accel_stream *stream,
+                                   int64_t now_ms, uint32_t *interval_ms) {
+    if (!stream->have_report_time || now_ms < stream->last_report_time_ms) {
+        return false;
+    }
+
+    /* A monotonic difference can exceed INT64_MAX even though each timestamp
+     * is representable. Unsigned subtraction preserves that entire span;
+     * only a checked, short history interval is narrowed afterward. */
+    uint64_t elapsed = (uint64_t)now_ms - (uint64_t)stream->last_report_time_ms;
+    if (elapsed > VECTOR_ACCEL_HISTORY_TIMEOUT_MS) {
+        return false;
+    }
+    if (interval_ms != NULL) {
+        *interval_ms = (uint32_t)elapsed;
+    }
+    return true;
+}
+
 uint16_t vector_accel_stream_begin_axis(struct vector_accel_stream *stream,
                                         enum vector_accel_axis axis, int64_t now_ms) {
     if ((uint32_t)axis >= VECTOR_ACCEL_AXIS_COUNT) {
@@ -235,8 +254,7 @@ uint16_t vector_accel_stream_begin_axis(struct vector_accel_stream *stream,
 
         /* A frame in the same millisecond as the last one is part of a burst,
          * not the start of a new stroke: it keeps the factor. */
-        if (!stream->have_report_time || now_ms < stream->last_report_time_ms ||
-            now_ms - stream->last_report_time_ms > VECTOR_ACCEL_HISTORY_TIMEOUT_MS) {
+        if (!recent_report_interval(stream, now_ms, NULL)) {
             stream->factor = VECTOR_ACCEL_SCALE;
         }
     }
@@ -261,15 +279,14 @@ void vector_accel_stream_finish_frame(struct vector_accel_stream *stream,
         return;
     }
 
-    if (stream->have_report_time && now_ms >= stream->last_report_time_ms &&
-        now_ms - stream->last_report_time_ms <= VECTOR_ACCEL_HISTORY_TIMEOUT_MS) {
+    uint32_t interval_ms;
+    if (recent_report_interval(stream, now_ms, &interval_ms)) {
         uint32_t magnitude = vector_accel_magnitude(stream->frame_delta[VECTOR_ACCEL_AXIS_X],
                                                     stream->frame_delta[VECTOR_ACCEL_AXIS_Y]);
 
         stream->history_magnitude =
             saturating_add_u32(history_decay(stream->history_magnitude), magnitude);
-        stream->history_span_ms = history_decay(stream->history_span_ms) +
-                                  (uint32_t)(now_ms - stream->last_report_time_ms);
+        stream->history_span_ms = history_decay(stream->history_span_ms) + interval_ms;
         stream->factor = vector_accel_compute_factor(
             config, vector_accel_speed(stream->history_magnitude, stream->history_span_ms));
     } else {

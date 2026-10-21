@@ -41,8 +41,10 @@ static size_t settings_len;
 #define ZMK_CUSTOM_SETTING_FOREACH(_var)                                                           \
     for (struct zmk_custom_setting *_var = settings; _var < settings + settings_len; _var++)
 
+static unsigned reads;
 static int zmk_custom_setting_read(const struct zmk_custom_setting *setting,
                                    struct zmk_custom_setting_value *value) {
+    reads++;
     *value = setting->value;
     return setting->read_result;
 }
@@ -53,11 +55,18 @@ static int zmk_custom_setting_read(const struct zmk_custom_setting *setting,
 #define DT_INST_FOREACH_STATUS_OKAY(fn) fn(0)
 #define DEVICE_DT_INST_GET(n) (&instance)
 #define LOG_WRN(fmt, ...) ((void)warnings++, (void)sizeof(printf(fmt, ##__VA_ARGS__)))
-typedef struct { int kind; } zmk_event_t;
+typedef struct { int kind; const struct zmk_custom_setting *setting; } zmk_event_t;
+struct zmk_custom_setting_changed { const struct zmk_custom_setting *setting; };
+static struct zmk_custom_setting_changed changed_event;
+static const struct zmk_custom_setting_changed *as_zmk_custom_setting_changed(const zmk_event_t *eh) {
+    if (eh->kind != 1) return NULL;
+    changed_event.setting = eh->setting;
+    return &changed_event;
+}
 static int warnings;
 static struct device instance;
 #define INT_SETTING(name, v)                                                                       \
-    static struct zmk_custom_setting name = {                                                      \
+    static struct zmk_custom_setting name = {.custom_subsystem_id = ZMK_INPUT_VECTOR_ACCELERATION_SUBSYSTEM,                                                      \
         .value = {.type = ZMK_CUSTOM_SETTING_VALUE_TYPE_INT32, .int32_value = (v)}}
 INT_SETTING(vector_accel_cs_min_factor_0, 400);
 INT_SETTING(vector_accel_cs_max_factor_0, 3000);
@@ -144,7 +153,7 @@ static void test_unique_keys(void) {
 
 /* The curve is applied whole, only when it is readable and valid. */
 static void test_apply(void) {
-    const zmk_event_t changed = {1};
+    const zmk_event_t changed = {1, &vector_accel_cs_min_factor_0};
     assert(vector_accel_settings_event_cb(&changed) == ZMK_EV_EVENT_BUBBLE);
     assert(applies == 1 && running.min_factor == 400 && running.max_factor == 3000);
     assert(running.unity_speed == 100 && running.max_speed == 900);
@@ -175,6 +184,15 @@ int main(void) {
     test_readers();
     test_unique_keys();
     test_apply();
+    const struct zmk_custom_setting foreign = {.custom_subsystem_id="other__module"};
+    const zmk_event_t unrelated = {1, &foreign};
+    const unsigned before_reads = reads;
+    const int before_applies = applies;
+    assert(vector_accel_settings_event_cb(&unrelated) == ZMK_EV_EVENT_BUBBLE);
+    assert(reads == before_reads && applies == before_applies);
+    const zmk_event_t initialized = {0, NULL};
+    assert(vector_accel_settings_event_cb(&initialized) == ZMK_EV_EVENT_BUBBLE);
+    assert(reads > before_reads);
     puts("vector-acceleration custom settings helpers: PASS");
     return 0;
 }

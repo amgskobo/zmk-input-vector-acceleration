@@ -530,6 +530,32 @@ static void test_exact_boundaries(void) {
     assert(x_frame(&stream, 1100, 100) == 1000U);
 }
 
+static void test_full_timestamp_range(void) {
+    struct vector_accel_stream stream;
+    vector_accel_stream_init(&stream);
+    x_frame(&stream, INT64_MIN, 100);
+    assert(stream.have_report_time && stream.last_report_time_ms == INT64_MIN);
+
+    /* This monotonic span is much longer than the history window. Computing
+     * its signed difference must neither overflow nor retain old velocity. */
+    assert(x_frame(&stream, INT64_MAX, 100) == VECTOR_ACCEL_SCALE);
+    assert(stream.factor == VECTOR_ACCEL_SCALE);
+    assert(stream.history_magnitude == 0 && stream.history_span_ms == 0);
+    assert(stream.last_report_time_ms == INT64_MAX);
+
+    /* Check closing a frame across the same large span independently of the
+     * opening path, as well as the backwards-clock reset contract. */
+    vector_accel_stream_init(&stream);
+    x_frame(&stream, INT64_MIN, 100);
+    vector_accel_stream_begin_axis(&stream, VECTOR_ACCEL_AXIS_X, INT64_MIN);
+    vector_accel_stream_add(&stream, VECTOR_ACCEL_AXIS_X, 100);
+    vector_accel_stream_finish_frame(&stream, &test_config, INT64_MAX);
+    assert(stream.factor == VECTOR_ACCEL_SCALE);
+    assert(stream.history_magnitude == 0 && stream.history_span_ms == 0);
+    assert(x_frame(&stream, INT64_MIN, 100) == VECTOR_ACCEL_SCALE);
+    assert(stream.history_magnitude == 0 && stream.history_span_ms == 0);
+}
+
 int main(void) {
     test_absolute_value();
     test_magnitude();
@@ -544,6 +570,7 @@ int main(void) {
     test_config_validation();
     test_unusual_input_guards();
     test_exact_boundaries();
+    test_full_timestamp_range();
     puts("vector acceleration tests: PASS");
     return 0;
 }

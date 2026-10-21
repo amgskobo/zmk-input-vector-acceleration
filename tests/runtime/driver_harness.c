@@ -31,6 +31,7 @@ struct zmk_input_processor_state { uint8_t input_device_index; int16_t *remainde
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 #define ARG_UNUSED(x) ((void)(x))
+#define LOG_WRN(...) ((void)0)
 #define CONTAINER_OF(ptr, type, field) ((type *)(void *)((char *)(ptr) - offsetof(type, field)))
 /* Firmware builds without CONFIG_ASSERT; kept unevaluated but type-checked. */
 #define __ASSERT(cond, msg) ((void)sizeof((cond) && (msg)))
