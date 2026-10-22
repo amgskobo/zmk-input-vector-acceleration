@@ -8,6 +8,7 @@
 set -euo pipefail
 
 tests_dir=/src/tests/integration
+source "$tests_dir/workspace-env.sh"
 
 if [ -n "${ZMK_TEST_OFFLINE_WORKSPACE:-}" ]; then
     work_dir="${ZMK_TEST_OUTPUT:?set ZMK_TEST_OUTPUT to a fresh evidence directory}"
@@ -49,6 +50,7 @@ build_case() {
     local case_name="$2"
     local config_dir="$3"
     local build_dir="$work_dir/build/$case_name"
+    zmk_test_select_workspace "$workspace"
 
     rm -rf "$build_dir"
     mkdir -p "$build_dir"
@@ -82,10 +84,10 @@ build_case "$upstream_dir" upstream-smoke "$tests_dir/smoke"
 build_case "$dya_dir" dya-studio "$tests_dir/studio"
 build_case "$upstream_dir" upstream-runtime "$tests_dir/runtime"
 build_case "$upstream_dir" upstream-persistence "$tests_dir/persistence"
-export ZEPHYR_BASE="$upstream_dir/zephyr"
+zmk_test_select_workspace "$upstream_dir"
 (cd "$upstream_dir" && west zephyr-export)
 bash "$tests_dir/guards/run.sh" "$upstream_dir" "$work_dir/build/guards"
-export ZEPHYR_BASE="$dya_dir/zephyr"
+zmk_test_select_workspace "$dya_dir"
 (cd "$dya_dir" && west zephyr-export)
 bash "$tests_dir/firmware/run.sh" "$dya_dir" "$work_dir/build/firmware"
 

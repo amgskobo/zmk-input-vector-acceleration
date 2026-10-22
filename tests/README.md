@@ -1,21 +1,14 @@
 # Module-owned tests
 
-Run from this checkout. Docker + Bash is the host entry point; no keyboard
-checkout, shared test dispatcher or simulator repository is required.
-
 ```bash
 bash tests/run-docker.sh
 ZMK_TEST_MODE=full bash tests/run-docker.sh
 ```
 
-On PowerShell, set `$env:ZMK_TEST_MODE="full"` for the second command
-and invoke Git Bash explicitly. Remove the variable for the default quick run.
-
-Quick executes **all behavioral fixtures and scenarios** once with
-AddressSanitizer/UndefinedBehaviorSanitizer. Full repeats those same assertions
-under the retained optimization, coverage and (where already present) 32-bit
-variants. CI uses quick for push/PR and full for scheduled/manual runs.
-Unknown mode values fail; there is no silent skipped success.
+Quick runs every scenario under ASan/UBSan; full adds optimized, coverage and
+32-bit variants. Unknown modes fail. Resolve/read actual dependency instructions
+before testing. [contract.json](contract.json) and [maintenance.json](maintenance.json)
+map current fixtures, commands, supported cores and gaps.
 
 ## Retained behavioral contracts
 
@@ -43,77 +36,44 @@ measured in their callers. Normal full runs retain actual compiled line/branch
 measurement and all behavioral assertions. Recording tools prove admission,
 not firmware behavior.
 
-## Separate integration and physical contracts
+## Responsibility map
 
-Keep the existing owner `run-integration-docker.sh` commands and accepted
-upstream/DYA variants for changed APIs, DTS/Kconfig/registration or actual
-kernel boundaries. Native fixtures and negative guards are retained. Do not
-run all firmware variants for a pure arithmetic edit. Host extracted functions
-and controlled work queues do not prove real scheduling or transport delivery.
+This owner contains no source-button suppression, pair history, layer-policy
+watcher or final-filter dependency. It consumes relative X/Y for gain and keeps
+source-local frame timing/history and fractional remainders. Other event payloads
+and sync remain unchanged; a sync event may close an already open motion frame.
 
-## Retired legacy simulation
+Those histories determine speed/gain and cannot move into final suppression.
+The fallback remainders are required for callers without listener remainder
+storage. Curve snapshot locking and delayed save work own runtime tuning. The
+custom-settings build excludes local persistence so only one writer is active.
+Production state/API/DTS/Kconfig remain unchanged. The current review adds
+explicit workspace selection and its infrastructure tests.
 
-The active `tests/bsim` directory was removed on 2026-10-05. Before removal,
-every source and ordered snapshot was SHA256-verified in an external archive.
-Its retirement manifest retains the raw traces and assertion mapping. Archive
-locations belong to the consuming keyboard integration repository and are not
-a prerequisite for these module-owned checks.
-No failed snapshot was accepted as passing.
+| Boundary | Retained fixture/assertions |
+| --- | --- |
+| Pure vector math/history | test_vector_accel.c links actual vector_accel_core.c: same gain/diagonal/saturation/fractional/timestamp extremes and frame reset assertions |
+| Driver and fallback histories | runtime/driver_harness.c: same event frames, source isolation, runtime curve and local persistence callbacks |
+| Alternate persistence owner | runtime/driver_ram_harness.c: same RAM-only variant; custom-settings owns writes |
+| Settings adapter | runtime/custom_settings_harness.c: same types/ranges/key/application/reset checks |
+| Whole real compatibility / binding guards | Existing integration/run.sh supported stock and DYA variants, selected for API/build changes |
 
-| Retired case | Behavioral replacement | Transport boundary |
-| --- | --- | --- |
-| split-steady | The owner fixtures above retain state/arithmetic/error assertions | Ordered physical split/HID/LED/battery delivery and timing: pending actual-device evidence |
+## Integration and admission
 
-For the affected case, exercise the same contact/layer/settings/power or
-congestion/reconnect transition on the production board. Capture each report
-value/order/timestamp and verify balanced releases and specified deadlines.
-Do not mark the archived exact radio trace as covered by a host stub.
+Both unchanged stock ZMK and DYA are supported. Keep the owner integration/API/
+DTS guards for interface, registration, settings or kernel changes. Inside the
+pinned image, mount this module at `/src` and explicitly select resolved caches.
+The offline entry creates isolated unchanged ZMK clones, dependency symlinks and
+original fixture manifests without fetching. It checks exact clean core, Zephyr
+and required library identities before building.
 
-## Current test ownership and compatibility
-
-Run the relevant public interface/build checks on both unchanged stock ZMK
-and DYA when this owner supports both. See the selected core in the manifest.
-
-Canonical entries (run from the repository root):
-
-```bash
-bash tests/run-docker.sh
-```
-
-[maintenance.json](maintenance.json) records supported cores, current commands
-and explicit gaps. It is a reference map, not a passing test or a claim that
-registration/coverage totals establish completeness. Preserve ordered outputs,
-raw timestamps and the first failure. Read actual dependencies before execution.
-
-## Explicit offline integration
-
-The existing `tests/integration/run.sh` also accepts an already resolved cache
-through `ZMK_TEST_OFFLINE_WORKSPACE`, with a fresh `ZMK_TEST_OUTPUT` directory.
-Run this entry inside the same build image with the module mounted at `/src`.
-The offline path makes an isolated west workspace using the original fixture
-manifest, an unchanged local Git clone of ZMK and symlinks to cached dependencies; it never fetches or patches
-the core. Exact supported core, Zephyr and required library revisions and clean
-source state are checked before a build; existing outputs are rejected.
-The combined processors/vector runners also require
-`ZMK_TEST_OFFLINE_UPSTREAM_WORKSPACE`. Other runners select `upstream` or `dya`
-as their first argument (the inertia default remains upstream).
-
-DYA fixtures that enable custom settings require
-`ZMK_TEST_CUSTOM_SETTINGS_ARCHIVE`: the SHA256-checked git archive of the pinned
-`c6a7fef3a3be3d3ace5de9a4b0628c6418cd1f3f` test dependency, without local edits.
-The accepted archive digest is recorded in `tests/integration/offline.py`.
-All existing fixture assertions and cases run unchanged after preparation.
-Outputs inside source/dependency roots, including parent-symlink aliases,
-are rejected before creating output. Project paths must not overlap one
-another or west/config metadata. Sibling outputs and external dependencies
-remain supported. The host/CI entry runs these rejection fixtures in both modes.
-Test offline admission and rejection with
-`python3 -m unittest discover -s tests/integration -p test_offline.py -v`.
-Core updates require an explicit pin review rather than an implicit fetch.
-
-The preparation uses Linux symlinks and runs inside the documented build image.
-`ZMK_TEST_OFFLINE_NEGATIVE_CONTROL=skip-identity` in the admission test command
-intentionally bypasses dependency identity validation; its rejection tests must fail.
+DYA enables custom settings. Supply its unmodified pinned git archive via
+`ZMK_TEST_CUSTOM_SETTINGS_ARCHIVE`; [integration/offline.py](integration/offline.py)
+records its revision/digest. Host/CI admission tests retain wrong/dirty/missing
+pin and parseable wrong-archive rejection, safe project paths, output outside
+sources/dependencies (including parent symlinks), and separate west/config
+metadata. External dependencies and sibling outputs remain supported. Identity/
+digest bypass controls must fail their named missing-rejection assertions.
 
 A complete offline run in the build image uses both selected cores:
 
@@ -124,3 +84,24 @@ ZMK_TEST_CUSTOM_SETTINGS_ARCHIVE=/resolved/custom-settings-c6a7fef.tar \
 ZMK_TEST_OUTPUT=/tmp/vector-acceleration-integration-v1 \
 bash /src/tests/integration/run.sh
 ```
+
+## Retired simulation and physical gaps
+
+The split-steady simulation source and raw ordered snapshots were externally
+archived before removal. State/arithmetic/error assertions remain above; exact
+radio/HID/LED/battery traces, physical clock/arrival jitter, NVS power-loss
+persistence, USB/BLE/split delivery, timing, power and recovery need separate
+matching board evidence. No failed snapshot was accepted. The earlier documentation
+consolidation retained all assertions. Current workspace guards change no
+behavioral snapshot, API or production state.
+
+## Selected workspace and module providers
+
+Workspace selection uses tests/integration/workspace-env.sh to export the
+selected manifest's ZEPHYR_MODULES and explicit Zephyr package/base paths. A
+Zephyr symlink to a different cache must not select that cache's module providers.
+The owner test_workspace_env.py exercises actual selection with a poisoned ambient
+list, a cache symlink, module paths containing spaces, failed project discovery and
+an empty selection. The keep-ambient negative control must fail these assertions.
+Full integration retains all supported-core, role, persistence and invalid-DTS
+cases. No dependency is patched or required feature disabled.
