@@ -13,6 +13,7 @@
     "Explicit offline integration: tests/integration/run.sh; see tests/README.md for pinned workspaces, variant selection and fresh outputs"
   ],
   "coverage_map": "tests/contract.json",
+  "concurrent_settings": "DYA real registry read/apply interleaving with two Zephyr writers; same Studio binary three times, old and concurrent completion markers required. Before repair fails 3/3; no production test hook or changed core.",
   "preserved_assertions": "Relocated fixtures retain their prior assertions; no snapshot auto-accept or unique assertion removal.",
   "execution": {
     "quick": "All behavioral scenarios once; sanitizer variants where supported.",

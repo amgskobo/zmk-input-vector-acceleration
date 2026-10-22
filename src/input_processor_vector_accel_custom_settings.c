@@ -22,6 +22,7 @@
 
 #include <zephyr/devicetree.h>
 #include <zephyr/init.h>
+#include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
 #include <cormoran/zmk/custom_settings.h>
@@ -36,6 +37,8 @@
 #define CONFIG_ZMK_INPUT_VECTOR_ACCELERATION_LOG_LEVEL 3
 #endif
 LOG_MODULE_REGISTER(zmk_input_vector_acceleration_input_processor_vector_accel_custom_settings, CONFIG_ZMK_INPUT_VECTOR_ACCELERATION_LOG_LEVEL);
+
+static K_MUTEX_DEFINE(settings_lock);
 
 static bool vector_accel_namespace_handler(const zmk_custom_CallRequest *request,
                                            pb_callback_t *encode_response);
@@ -151,7 +154,13 @@ static bool read_uint16(const struct zmk_custom_setting *setting, uint16_t *out)
         }                                                                                          \
     }
 
-static void vector_accel_apply_settings(void) { DT_INST_FOREACH_STATUS_OKAY(VECTOR_ACCEL_APPLY) }
+static void vector_accel_apply_settings(void) {
+    /* Serialize the entire registry read/apply transaction, including boot.
+     * Locking only the live curve would allow an older snapshot to win last. */
+    k_mutex_lock(&settings_lock, K_FOREVER);
+    DT_INST_FOREACH_STATUS_OKAY(VECTOR_ACCEL_APPLY)
+    k_mutex_unlock(&settings_lock);
+}
 
 static int vector_accel_settings_event_cb(const zmk_event_t *eh) {
     const struct zmk_custom_setting_changed *changed = as_zmk_custom_setting_changed(eh);

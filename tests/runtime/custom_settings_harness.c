@@ -32,6 +32,19 @@ typedef struct { int unused; } pb_callback_t;
 
 #define ARG_UNUSED(x) ((void)(x))
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
+#define K_FOREVER (-1)
+struct k_mutex { unsigned held; };
+static struct k_mutex settings_lock;
+static int k_mutex_lock(struct k_mutex *lock, int timeout) {
+    assert(lock == &settings_lock && timeout == K_FOREVER && lock->held == 0);
+    lock->held++;
+    return 0;
+}
+static int k_mutex_unlock(struct k_mutex *lock) {
+    assert(lock == &settings_lock && lock->held == 1);
+    lock->held--;
+    return 0;
+}
 
 static int errors;
 #define LOG_ERR(fmt, ...) ((void)errors++, (void)sizeof(printf(fmt, ##__VA_ARGS__)))
@@ -78,12 +91,14 @@ static int applies;
 
 int vector_accel_get_config(const struct device *dev, struct vector_accel_config *out) {
     assert(dev == &instance);
+    assert(settings_lock.held == 1);
     *out = running;
     return get_result;
 }
 
 int vector_accel_set_config(const struct device *dev, const struct vector_accel_config *config) {
     assert(dev == &instance);
+    assert(settings_lock.held == 1);
     applies++;
     running = *config;
     return 0;
@@ -193,6 +208,7 @@ int main(void) {
     const zmk_event_t initialized = {0, NULL};
     assert(vector_accel_settings_event_cb(&initialized) == ZMK_EV_EVENT_BUBBLE);
     assert(reads > before_reads);
+    assert(settings_lock.held == 0);
     puts("vector-acceleration custom settings helpers: PASS");
     return 0;
 }

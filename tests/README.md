@@ -85,6 +85,20 @@ ZMK_TEST_OUTPUT=/tmp/vector-acceleration-integration-v1 \
 bash /src/tests/integration/run.sh
 ```
 
+## Concurrent registry updates
+
+The settings adapter serializes each complete registry read/apply transaction,
+including initialization. The DYA Studio fixture pauses writer A after the last
+real registry read, commits another field from higher-priority writer B, then
+resumes A. Both writes must finish with the live curve matching the latest
+registry values. The same before-repair binary fails this assertion three times;
+the integration entry now repeats the unchanged Studio binary three times and
+requires both the old completion marker and the concurrent-update marker.
+The linker wrapper belongs only to the test module. All previous rejection,
+curve, role, firmware, persistence and host assertions remain. Host stand-ins
+check that the transaction lock covers read and apply and is released afterward.
+This is real registry/kernel evidence, not a browser RPC or physical flash test.
+
 ## Retired simulation and physical gaps
 
 The split-steady simulation source and raw ordered snapshots were externally

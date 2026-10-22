@@ -106,13 +106,18 @@ fi
 echo "PASS: upstream-runtime execution"
 
 studio_exe="$work_dir/build/dya-studio/zephyr/zmk.exe"
-studio_log="$work_dir/build/dya-studio.run.log"
-if ! timeout 30 "$studio_exe" >"$studio_log" 2>&1; then
-    echo "FAILED: dya-studio did not exit successfully"
-    tail -n 60 "$studio_log"
-    exit 1
-fi
-grep -Fq "vector acceleration Studio settings tests: PASS" "$studio_log"
+studio_failed=0
+for repeat in 1 2 3; do
+    studio_log="$work_dir/build/dya-studio.run-$repeat.log"
+    if ! timeout 30 "$studio_exe" >"$studio_log" 2>&1 ||
+       ! grep -Fq "vector acceleration Studio settings tests: PASS" "$studio_log" ||
+       ! grep -Fq "vector acceleration concurrent settings: PASS" "$studio_log"; then
+        echo "FAILED: dya-studio repeat $repeat"
+        tail -n 60 "$studio_log"
+        studio_failed=1
+    fi
+done
+if [ "$studio_failed" -ne 0 ]; then exit 1; fi
 echo "PASS: dya-studio execution"
 
 persistence_exe="$work_dir/build/upstream-persistence/zephyr/zmk.exe"
