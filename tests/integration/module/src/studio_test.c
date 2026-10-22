@@ -35,6 +35,60 @@ static bool same_config(const struct vector_accel_config *config, uint16_t min_f
            config->unity_speed == unity_speed && config->max_speed == max_speed;
 }
 
+K_SEM_DEFINE(snapshot_ready, 0, 1);
+K_SEM_DEFINE(snapshot_resume, 0, 1);
+K_SEM_DEFINE(writers_done, 0, 2);
+K_THREAD_STACK_DEFINE(writer_stack_a, 4096);
+K_THREAD_STACK_DEFINE(writer_stack_b, 4096);
+static struct k_thread writer_a, writer_b;
+static const struct zmk_custom_setting *race_max;
+static atomic_t pause_read;
+
+int __real_zmk_custom_setting_read(const struct zmk_custom_setting *,
+                                  struct zmk_custom_setting_value *);
+int __wrap_zmk_custom_setting_read(const struct zmk_custom_setting *setting,
+                                  struct zmk_custom_setting_value *value) {
+    int rc = __real_zmk_custom_setting_read(setting, value);
+    if (rc == 0 && setting == race_max && k_current_get() == &writer_a &&
+        atomic_cas(&pause_read, 1, 0)) {
+        k_sem_give(&snapshot_ready);
+        __ASSERT_NO_MSG(k_sem_take(&snapshot_resume, K_SECONDS(1)) == 0);
+    }
+    return rc;
+}
+
+static void concurrent_writer(void *which, void *b, void *c) {
+    ARG_UNUSED(b); ARG_UNUSED(c);
+    __ASSERT_NO_MSG(write_int(which == NULL ? "vector_accel_test.min_factor" :
+                             "vector_accel_test.max_speed",
+                             which == NULL ? 700 : 10000) == 0);
+    k_sem_give(&writers_done);
+}
+
+static void test_concurrent_settings(void) {
+    race_max = find("vector_accel_test.max_speed");
+    __ASSERT_NO_MSG(race_max != NULL);
+    atomic_set(&pause_read, 1);
+    k_thread_create(&writer_a, writer_stack_a, K_THREAD_STACK_SIZEOF(writer_stack_a),
+                    concurrent_writer, NULL, NULL, NULL, 1, 0, K_NO_WAIT);
+    __ASSERT_NO_MSG(k_sem_take(&snapshot_ready, K_SECONDS(1)) == 0);
+    k_thread_create(&writer_b, writer_stack_b, K_THREAD_STACK_SIZEOF(writer_stack_b),
+                    concurrent_writer, (void *)1, NULL, NULL, 1, 0, K_NO_WAIT);
+    /* B outranks this test thread and commits before it finishes or blocks
+     * waiting for the adapter. The registry lock is outside the pause. */
+    struct zmk_custom_setting_value stored;
+    __ASSERT_NO_MSG(zmk_custom_setting_read(race_max, &stored) == 0 &&
+                    stored.int32_value == 10000);
+    k_sem_give(&snapshot_resume);
+    __ASSERT_NO_MSG(k_sem_take(&writers_done, K_SECONDS(1)) == 0);
+    __ASSERT_NO_MSG(k_sem_take(&writers_done, K_SECONDS(1)) == 0);
+    struct vector_accel_config config;
+    __ASSERT_NO_MSG(vector_accel_get_config(accel, &config) == 0);
+    __ASSERT(same_config(&config, 700, 20000, 7000, 10000),
+             "Concurrent registry edits must not restore an older curve");
+    printk("vector acceleration concurrent settings: PASS\n");
+}
+
 static void run_tests(void *p1, void *p2, void *p3) {
     ARG_UNUSED(p1);
     ARG_UNUSED(p2);
@@ -89,6 +143,7 @@ static void run_tests(void *p1, void *p2, void *p3) {
     __ASSERT_NO_MSG(vector_accel_get_config(accel, &config) == 0);
     __ASSERT_NO_MSG(same_config(&config, 600, 20000, 7000, 9000));
 
+    test_concurrent_settings();
     printk("vector acceleration Studio settings tests: PASS\n");
     exit(0);
 }

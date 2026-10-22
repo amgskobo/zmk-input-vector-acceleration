@@ -8,7 +8,16 @@
 set -euo pipefail
 
 tests_dir=/src/tests/integration
+source "$tests_dir/workspace-env.sh"
 
+if [ -n "${ZMK_TEST_OFFLINE_WORKSPACE:-}" ]; then
+    work_dir="${ZMK_TEST_OUTPUT:?set ZMK_TEST_OUTPUT to a fresh evidence directory}"
+    if [ -e "$work_dir" ]; then echo "output already exists: $work_dir" >&2; exit 2; fi
+    # Each prepared view has its own fresh child, while build outputs remain
+    # under the common evidence directory consumed by existing assertions.
+    dya_dir="$(python3 /src/tests/integration/offline.py "$ZMK_TEST_OFFLINE_WORKSPACE" dya "$tests_dir/config/west.yml" "$work_dir/dya-inputs")"
+    upstream_dir="$(python3 /src/tests/integration/offline.py "${ZMK_TEST_OFFLINE_UPSTREAM_WORKSPACE:?set the upstream workspace}" upstream "$tests_dir/upstream/west.yml" "$work_dir/upstream-inputs")"
+else
 if [ -n "${ZMK_TEST_WORKSPACE:-}" ]; then
     work_dir="$ZMK_TEST_WORKSPACE"
     mkdir -p "$work_dir"
@@ -18,6 +27,8 @@ else
         rm -rf "$work_dir"
     }
     trap cleanup EXIT HUP INT TERM
+fi
+
 fi
 
 prepare_workspace() {
@@ -39,12 +50,13 @@ build_case() {
     local case_name="$2"
     local config_dir="$3"
     local build_dir="$work_dir/build/$case_name"
+    zmk_test_select_workspace "$workspace"
 
     rm -rf "$build_dir"
     mkdir -p "$build_dir"
 
-    if ! (cd "$workspace" && west build -s zmk/app -d "$build_dir" \
-        -b native_sim//zmk_test_mock -- -DCONFIG_ASSERT=y \
+    if ! (cd "$workspace" && ZEPHYR_BASE="$workspace/zephyr" west build -s zmk/app -d "$build_dir" \
+        -b native_sim//zmk_test_mock -- -DZephyr_DIR="$workspace/zephyr/share/zephyr-package/cmake" -DCONFIG_ASSERT=y \
         -DZMK_CONFIG="$config_dir" -DZMK_EXTRA_MODULES="/src;$tests_dir/module") \
         >"$build_dir.log" 2>&1; then
         echo "FAILED: $case_name"
@@ -55,6 +67,7 @@ build_case() {
     echo "PASS: $case_name"
 }
 
+if [ -z "${ZMK_TEST_OFFLINE_WORKSPACE:-}" ]; then
 prepare_workspace dya "$tests_dir/config/west.yml"
 dya_dir="$work_dir/dya"
 west update --narrow --fetch-opt=--depth=1
@@ -65,11 +78,17 @@ upstream_dir="$work_dir/upstream"
 west update --narrow --fetch-opt=--depth=1 --path-cache "$dya_dir"
 west zephyr-export
 
+fi
+
 build_case "$upstream_dir" upstream-smoke "$tests_dir/smoke"
 build_case "$dya_dir" dya-studio "$tests_dir/studio"
 build_case "$upstream_dir" upstream-runtime "$tests_dir/runtime"
 build_case "$upstream_dir" upstream-persistence "$tests_dir/persistence"
+zmk_test_select_workspace "$upstream_dir"
+(cd "$upstream_dir" && west zephyr-export)
 bash "$tests_dir/guards/run.sh" "$upstream_dir" "$work_dir/build/guards"
+zmk_test_select_workspace "$dya_dir"
+(cd "$dya_dir" && west zephyr-export)
 bash "$tests_dir/firmware/run.sh" "$dya_dir" "$work_dir/build/firmware"
 
 runtime_exe="$work_dir/build/upstream-runtime/zephyr/zmk.exe"
@@ -87,13 +106,18 @@ fi
 echo "PASS: upstream-runtime execution"
 
 studio_exe="$work_dir/build/dya-studio/zephyr/zmk.exe"
-studio_log="$work_dir/build/dya-studio.run.log"
-if ! timeout 30 "$studio_exe" >"$studio_log" 2>&1; then
-    echo "FAILED: dya-studio did not exit successfully"
-    tail -n 60 "$studio_log"
-    exit 1
-fi
-grep -Fq "vector acceleration Studio settings tests: PASS" "$studio_log"
+studio_failed=0
+for repeat in 1 2 3; do
+    studio_log="$work_dir/build/dya-studio.run-$repeat.log"
+    if ! timeout 30 "$studio_exe" >"$studio_log" 2>&1 ||
+       ! grep -Fq "vector acceleration Studio settings tests: PASS" "$studio_log" ||
+       ! grep -Fq "vector acceleration concurrent settings: PASS" "$studio_log"; then
+        echo "FAILED: dya-studio repeat $repeat"
+        tail -n 60 "$studio_log"
+        studio_failed=1
+    fi
+done
+if [ "$studio_failed" -ne 0 ]; then exit 1; fi
 echo "PASS: dya-studio execution"
 
 persistence_exe="$work_dir/build/upstream-persistence/zephyr/zmk.exe"
