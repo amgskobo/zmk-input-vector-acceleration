@@ -182,7 +182,7 @@ this integration is enabled, keep node names to 19 characters or fewer
 (`pointer_accel`, `stick_accel`).
 
 The option needs the patched ZMK that carries the custom Studio RPC protocol,
-along with `zmk-feature-custom-settings` in `config/west.yml`. It is off by
+along with [`zmk-feature-custom-settings`](https://github.com/cormoran/zmk-feature-custom-settings) in `config/west.yml`. It is off by
 default; an upstream ZMK build compiles none of it and, when `CONFIG_SETTINGS`
 is enabled, the module uses its own store.
 

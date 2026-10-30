@@ -173,7 +173,7 @@ padstick_vector_accel.max_factor
 （例: `pointer_accel`、`stick_accel`）。
 
 このオプションには、カスタム Studio RPC プロトコルを持つ patched ZMK と、
-`config/west.yml` の `zmk-feature-custom-settings` が必要です。既定は無効で、
+`config/west.yml` の [`zmk-feature-custom-settings`](https://github.com/cormoran/zmk-feature-custom-settings) が必要です。既定は無効で、
 本家 ZMK 向けのビルドでは一切コンパイルされません。`CONFIG_SETTINGS` が有効なら、
 モジュールは自前の保存領域を使います。
 
