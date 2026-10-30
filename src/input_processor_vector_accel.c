@@ -14,6 +14,7 @@
 #include <zephyr/devicetree.h>
 #include <zephyr/dt-bindings/input/input-event-codes.h>
 #include <zephyr/kernel.h>
+#include <zephyr/logging/log.h>
 #include <zephyr/sys/util.h>
 
 #include <drivers/input_processor.h>
@@ -32,6 +33,10 @@
 
 #include <zmk-input-vector-acceleration/vector_accel_core.h>
 #include <zmk-input-vector-acceleration/vector_accel_runtime.h>
+#ifndef CONFIG_ZMK_INPUT_VECTOR_ACCELERATION_LOG_LEVEL
+#define CONFIG_ZMK_INPUT_VECTOR_ACCELERATION_LOG_LEVEL 3
+#endif
+LOG_MODULE_REGISTER(zmk_vector_accel, CONFIG_ZMK_INPUT_VECTOR_ACCELERATION_LOG_LEVEL);
 
 #define VECTOR_ACCEL_LISTENER_COUNT DT_NUM_INST_STATUS_OKAY(zmk_input_listener)
 #define VECTOR_ACCEL_STREAM_COUNT MAX(VECTOR_ACCEL_LISTENER_COUNT, 1)
@@ -88,16 +93,14 @@ static struct vector_accel_stream *stream_for_event(
         index = state->input_device_index;
     }
 
-    if (stream_index != NULL) {
-        *stream_index = index;
-    }
+    *stream_index = index;
     return &data->streams[index];
 }
 
 static int scale_axis_event(struct input_event *event, struct vector_accel_data *data,
                             struct vector_accel_stream *stream,
                             struct zmk_input_processor_state *state, size_t stream_index,
-                            enum vector_accel_axis axis, int64_t now_ms) {
+                            enum vector_accel_axis axis, uint32_t now_ms) {
     int32_t raw = event->value;
     uint16_t factor = vector_accel_stream_begin_axis(stream, axis, now_ms);
     int32_t remainder;
@@ -136,10 +139,10 @@ static int vector_accel_handle_event(const struct device *dev, struct input_even
     }
     bool is_x = event->type == INPUT_EV_REL && event->code == INPUT_REL_X;
     bool is_y = event->type == INPUT_EV_REL && event->code == INPUT_REL_Y;
-    int64_t now_ms = 0;
+    uint32_t now_ms = 0;
 
     if (is_x || is_y || (event->sync && stream->frame_open)) {
-        now_ms = k_uptime_get();
+        now_ms = k_uptime_get_32();
     }
 
     if (is_x) {
@@ -233,10 +236,6 @@ static int vector_accel_settings_store(int index, const struct vector_accel_conf
 
     (void)snprintf(key, sizeof(key), VECTOR_ACCEL_SETTINGS_ROOT "/%d", index);
 
-    if (config == NULL) {
-        return settings_delete(key);
-    }
-
     return settings_save_one(key, config, sizeof(*config));
 }
 
@@ -302,7 +301,10 @@ static void vector_accel_save_work_handler(struct k_work *work) {
             continue;
         }
 
-        (void)vector_accel_settings_store((int)i, &config);
+        const int rc = vector_accel_settings_store((int)i, &config);
+        if (rc != 0) {
+            LOG_WRN("vector settings save failed: instance=%u rc=%d", (unsigned)i, rc);
+        }
         return;
     }
 }
