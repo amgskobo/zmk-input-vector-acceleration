@@ -20,10 +20,7 @@ map current fixtures, commands, supported cores and gaps.
 | [runtime/custom_settings_harness.c](runtime/custom_settings_harness.c) | Custom-settings persistence owner |
 | [test_runtime_coverage.py](test_runtime_coverage.py) | Actual runtime entry rejects empty, unrelated and partially measured gcov reports |
 
-The core also checks monotonic and backwards transitions across the full signed
-timestamp range. A span beyond the history window resets velocity without a
-signed subtraction overflow, for both opening and closing a frame. This is a
-pure timestamp-domain regression, not evidence of a board clock fault.
+The core checks modulo-32-bit timestamp endpoints, long forward gaps, backwards-clock resets and history continuity across wrap. This clock domain intentionally replaces the former signed-64-bit domain; prior fixtures and passing logs are retained by the consuming integration owner.
 
 Each fixture keeps its existing normal, boundary/invalid, independent-state,
 reset/cancellation and failure/recovery scenarios where applicable. Checks
@@ -119,3 +116,9 @@ list, a cache symlink, module paths containing spaces, failed project discovery 
 an empty selection. The keep-ambient negative control must fail these assertions.
 Full integration retains all supported-core, role, persistence and invalid-DTS
 cases. No dependency is patched or required feature disabled.
+
+## 32-bit arithmetic and clock contract
+
+Vector products, normalized ratios, speed and saturated signed output use 32-bit arithmetic. Rare full-range ratios use bounded binary fractional division. Core clock parameters and last_report_time_ms are uint32 milliseconds; migrate external core callers by passing the low 32 bits of monotonic uptime. Histories remain valid across wrap for intervals at most 100 ms. An entire 2^32 ms of silence cannot be distinguished from a short interval.
+
+test_vector_accel.c retains independent wide arithmetic references and gain/remainder/saturation cases, adds cancellation at signed limits and checks long gaps, backwards times and wrap continuity. test_vector_width.py rejects wide helpers in a 32-bit object.

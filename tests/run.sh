@@ -62,5 +62,5 @@ printf '%s\n' "$core" | grep -Fq 'Taken at least once:100.00%'
 fi
 
 python3 "$repo_root/tests/runtime/run.py"
-python3 -m unittest discover -s "$repo_root/tests" -p 'test_runtime_coverage.py' -v
+python3 -m unittest discover -s "$repo_root/tests" -p 'test_*.py' -v
 python3 -m unittest discover -s "$repo_root/tests/integration" -p 'test_*.py' -v

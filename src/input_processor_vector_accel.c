@@ -100,7 +100,7 @@ static struct vector_accel_stream *stream_for_event(
 static int scale_axis_event(struct input_event *event, struct vector_accel_data *data,
                             struct vector_accel_stream *stream,
                             struct zmk_input_processor_state *state, size_t stream_index,
-                            enum vector_accel_axis axis, int64_t now_ms) {
+                            enum vector_accel_axis axis, uint32_t now_ms) {
     int32_t raw = event->value;
     uint16_t factor = vector_accel_stream_begin_axis(stream, axis, now_ms);
     int32_t remainder;
@@ -139,10 +139,10 @@ static int vector_accel_handle_event(const struct device *dev, struct input_even
     }
     bool is_x = event->type == INPUT_EV_REL && event->code == INPUT_REL_X;
     bool is_y = event->type == INPUT_EV_REL && event->code == INPUT_REL_Y;
-    int64_t now_ms = 0;
+    uint32_t now_ms = 0;
 
     if (is_x || is_y || (event->sync && stream->frame_open)) {
-        now_ms = k_uptime_get();
+        now_ms = k_uptime_get_32();
     }
 
     if (is_x) {

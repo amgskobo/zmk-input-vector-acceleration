@@ -192,6 +192,22 @@ a client can refuse an impossible value before sending it. It cannot express
 `vector_accel_config_valid()` has the last word: a combination it rejects leaves
 the previous curve running rather than half-applying.
 
+## 32-bit arithmetic and clock contract
+
+Vector products, normalized ratios, speed and saturated signed output use
+32-bit arithmetic. Rare full-range ratios use bounded binary fractional
+division, preserving rounding and saturation without wide arithmetic.
+
+Core clock parameters `now_ms` and `last_report_time_ms` use `uint32_t`
+milliseconds. External core callers must pass the low 32 bits of monotonic
+uptime. Histories remain valid across wrap for intervals at most 100 ms.
+A full 2^32 ms of silence (about 49.7 days) cannot be distinguished from a
+short interval.
+
+The [test guide](tests/README.md) maps independent wide arithmetic references,
+signed-limit cancellation, gain/remainder/saturation, long gaps, backwards
+times, wrap continuity and the 32-bit object width guard.
+
 ## Testing
 
 The calculation and stream-state core is platform independent. Run its

@@ -46,7 +46,7 @@ struct vector_accel_config {
 
 struct vector_accel_stream {
     int32_t frame_delta[VECTOR_ACCEL_AXIS_COUNT];
-    int64_t last_report_time_ms;
+    uint32_t last_report_time_ms;
     /* Decayed sums of the recent frames' travel and of the time between them. */
     uint32_t history_magnitude;
     uint32_t history_span_ms;
@@ -66,8 +66,8 @@ int32_t vector_accel_scale_value(int32_t value, uint16_t factor, int32_t *remain
 
 void vector_accel_stream_init(struct vector_accel_stream *stream);
 uint16_t vector_accel_stream_begin_axis(struct vector_accel_stream *stream,
-                                        enum vector_accel_axis axis, int64_t now_ms);
+                                        enum vector_accel_axis axis, uint32_t now_ms);
 void vector_accel_stream_add(struct vector_accel_stream *stream, enum vector_accel_axis axis,
                              int32_t value);
 void vector_accel_stream_finish_frame(struct vector_accel_stream *stream,
-                                      const struct vector_accel_config *config, int64_t now_ms);
+                                      const struct vector_accel_config *config, uint32_t now_ms);

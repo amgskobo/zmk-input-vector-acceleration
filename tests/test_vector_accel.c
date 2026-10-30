@@ -184,10 +184,10 @@ static void test_remainders_and_saturation(void) {
     assert(remainder == 0);
 
     static const int32_t values[] = {
-        INT32_MIN, INT32_MIN + 1, -1001, -1000, -999,          -1,        0,
+        INT32_MIN, INT32_MIN + 1, 1073741824, -100000, 100000, -1001, -1000, -999,          -1,        0,
         1,         999,           1000,  1001,  INT32_MAX - 1, INT32_MAX,
     };
-    static const uint16_t factors[] = {0U, 1U, 100U, 999U, 1000U, 20000U, UINT16_MAX};
+    static const uint16_t factors[] = {0U, 1U, 2U, 100U, 999U, 1000U, 20000U, UINT16_MAX};
     static const int32_t previous_remainders[] = {
         INT32_MIN, -1001, -1000, -999, -1, 0, 1, 999, 1000, 1001, INT32_MAX,
     };
@@ -218,10 +218,10 @@ static void test_remainders_and_saturation(void) {
 
 /* One X-only frame of travel x at time t; returns the factor it was scaled by. */
 static uint16_t x_frame(struct vector_accel_stream *stream, int64_t t, int32_t x) {
-    uint16_t factor = vector_accel_stream_begin_axis(stream, VECTOR_ACCEL_AXIS_X, t);
+    uint16_t factor = vector_accel_stream_begin_axis(stream, VECTOR_ACCEL_AXIS_X, (uint32_t)t);
 
     vector_accel_stream_add(stream, VECTOR_ACCEL_AXIS_X, x);
-    vector_accel_stream_finish_frame(stream, &test_config, t);
+    vector_accel_stream_finish_frame(stream, &test_config, (uint32_t)t);
     return factor;
 }
 
@@ -492,11 +492,11 @@ static void test_exact_boundaries(void) {
 
     /* A repeated axis, either one, throws the open frame away and starts
      * over with only that axis seen. */
-    const int64_t t = 1020 + VECTOR_ACCEL_HISTORY_TIMEOUT_MS + 10;
+    const uint32_t t = 1020 + VECTOR_ACCEL_HISTORY_TIMEOUT_MS + 10;
     for (int axis = VECTOR_ACCEL_AXIS_X; axis <= VECTOR_ACCEL_AXIS_Y; axis++) {
         const enum vector_accel_axis repeated = (enum vector_accel_axis)axis;
 
-        vector_accel_stream_begin_axis(&stream, VECTOR_ACCEL_AXIS_X, t);
+        vector_accel_stream_begin_axis(&stream, VECTOR_ACCEL_AXIS_X, (uint32_t)t);
         vector_accel_stream_add(&stream, VECTOR_ACCEL_AXIS_X, 7);
         vector_accel_stream_begin_axis(&stream, VECTOR_ACCEL_AXIS_Y, t);
         vector_accel_stream_add(&stream, VECTOR_ACCEL_AXIS_Y, 9);
@@ -505,7 +505,7 @@ static void test_exact_boundaries(void) {
         assert(stream.frame_open && stream.seen_axes == (1U << axis));
         assert(stream.frame_delta[VECTOR_ACCEL_AXIS_X] == 0 &&
                stream.frame_delta[VECTOR_ACCEL_AXIS_Y] == 0);
-        vector_accel_stream_finish_frame(&stream, &test_config, t);
+        vector_accel_stream_finish_frame(&stream, &test_config, (uint32_t)t);
     }
 
     /* A frame that opens in time but closes past the history timeout has no
@@ -533,27 +533,36 @@ static void test_exact_boundaries(void) {
 static void test_full_timestamp_range(void) {
     struct vector_accel_stream stream;
     vector_accel_stream_init(&stream);
-    x_frame(&stream, INT64_MIN, 100);
-    assert(stream.have_report_time && stream.last_report_time_ms == INT64_MIN);
+    x_frame(&stream, 0U, 100);
+    assert(stream.have_report_time && stream.last_report_time_ms == 0U);
 
     /* This monotonic span is much longer than the history window. Computing
      * its signed difference must neither overflow nor retain old velocity. */
-    assert(x_frame(&stream, INT64_MAX, 100) == VECTOR_ACCEL_SCALE);
+    assert(x_frame(&stream, UINT32_MAX, 100) == VECTOR_ACCEL_SCALE);
     assert(stream.factor == VECTOR_ACCEL_SCALE);
     assert(stream.history_magnitude == 0 && stream.history_span_ms == 0);
-    assert(stream.last_report_time_ms == INT64_MAX);
+    assert(stream.last_report_time_ms == UINT32_MAX);
 
     /* Check closing a frame across the same large span independently of the
      * opening path, as well as the backwards-clock reset contract. */
     vector_accel_stream_init(&stream);
-    x_frame(&stream, INT64_MIN, 100);
-    vector_accel_stream_begin_axis(&stream, VECTOR_ACCEL_AXIS_X, INT64_MIN);
+    x_frame(&stream, 0U, 100);
+    vector_accel_stream_begin_axis(&stream, VECTOR_ACCEL_AXIS_X, 0U);
     vector_accel_stream_add(&stream, VECTOR_ACCEL_AXIS_X, 100);
-    vector_accel_stream_finish_frame(&stream, &test_config, INT64_MAX);
+    vector_accel_stream_finish_frame(&stream, &test_config, UINT32_MAX);
     assert(stream.factor == VECTOR_ACCEL_SCALE);
     assert(stream.history_magnitude == 0 && stream.history_span_ms == 0);
-    assert(x_frame(&stream, INT64_MIN, 100) == VECTOR_ACCEL_SCALE);
+    assert(x_frame(&stream, UINT32_MAX - 1U, 100) == VECTOR_ACCEL_SCALE);
     assert(stream.history_magnitude == 0 && stream.history_span_ms == 0);
+    /* A new frame across wrap retains exactly the same decayed history. */
+    vector_accel_stream_init(&stream);
+    x_frame(&stream, UINT32_MAX - 19U, 100);
+    x_frame(&stream, UINT32_MAX - 9U, 100);
+    uint16_t factor = stream.factor;
+    assert(factor > VECTOR_ACCEL_SCALE);
+    assert(x_frame(&stream, 0U, 100) == factor);
+    assert(stream.history_magnitude == 150U && stream.history_span_ms == 15U);
+
 }
 
 int main(void) {

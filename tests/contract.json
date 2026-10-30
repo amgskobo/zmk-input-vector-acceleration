@@ -45,5 +45,11 @@
     "limits": "Admission tests control dependency responses. Actual native/API/firmware fixtures separately verify unchanged stock ZMK and DYA. Physical transport remains separate."
   },
   "suppression_scope": "No final source-button policy. Keep vector frames/history/remainders and exactly one persistence owner; existing executable tests unchanged.",
-  "selected_workspace": "Workspace selection uses tests/integration/workspace-env.sh to export the selected manifest's ZEPHYR_MODULES and explicit Zephyr package/base paths. A Zephyr symlink to a different cache must not select that cache's module providers. The owner test_workspace_env.py exercises actual selection with a poisoned ambient list, a cache symlink, module paths containing spaces, failed project discovery and an empty selection. The keep-ambient negative control must fail these assertions. Full integration retains all supported-core, role, persistence and invalid-DTS cases. No dependency is patched or required feature disabled."
+  "selected_workspace": "Workspace selection uses tests/integration/workspace-env.sh to export the selected manifest's ZEPHYR_MODULES and explicit Zephyr package/base paths. A Zephyr symlink to a different cache must not select that cache's module providers. The owner test_workspace_env.py exercises actual selection with a poisoned ambient list, a cache symlink, module paths containing spaces, failed project discovery and an empty selection. The keep-ambient negative control must fail these assertions. Full integration retains all supported-core, role, persistence and invalid-DTS cases. No dependency is patched or required feature disabled.",
+  "integer_width": {
+    "production": "32-bit arithmetic; independent wider oracles remain test-only",
+    "contract": "Vector products, normalized ratios, speed and saturated signed output use 32-bit arithmetic. Rare full-range ratios use bounded binary fractional division. Core clock parameters and last_report_time_ms are uint32 milliseconds; migrate external core callers by passing the low 32 bits of monotonic uptime. Histories remain valid across wrap for intervals at most 100 ms. An entire 2^32 ms of silence cannot be distinguished from a short interval.",
+    "fixtures": "test_vector_accel.c retains independent wide arithmetic references and gain/remainder/saturation cases, adds cancellation at signed limits and checks long gaps, backwards times and wrap continuity. test_vector_width.py rejects wide helpers in a 32-bit object.",
+    "physical": "NOT RUN"
+  }
 }

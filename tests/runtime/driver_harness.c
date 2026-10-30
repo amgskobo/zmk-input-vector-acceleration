@@ -64,9 +64,9 @@ static int saves;
 static const char *loaded_subtree;
 
 static int clock_reads;
-static int64_t k_uptime_get(void) {
+static uint32_t k_uptime_get_32(void) {
     clock_reads++;
-    return now_ms;
+    return (uint32_t)now_ms;
 }
 static k_spinlock_key_t k_spin_lock(struct k_spinlock *lock) {
     assert(!lock->held);

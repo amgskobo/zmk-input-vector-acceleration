@@ -19,15 +19,11 @@ static uint32_t clamp_u32(uint32_t value, uint32_t lower, uint32_t upper) {
 }
 
 static int32_t saturating_add_i32(int32_t left, int32_t right) {
-    int64_t sum = (int64_t)left + (int64_t)right;
-
-    if (sum > INT32_MAX) {
-        return INT32_MAX;
+    int32_t sum;
+    if (__builtin_add_overflow(left, right, &sum)) {
+        return left < 0 ? INT32_MIN : INT32_MAX;
     }
-    if (sum < INT32_MIN) {
-        return INT32_MIN;
-    }
-    return (int32_t)sum;
+    return sum;
 }
 
 static uint32_t saturating_add_u32(uint32_t left, uint32_t right) {
@@ -40,17 +36,7 @@ static uint32_t history_decay(uint32_t sum) {
 }
 
 static uint32_t scale_ratio(uint32_t numerator, uint32_t denominator) {
-    /*
-     * Every caller asks for a value scaled by VECTOR_ACCEL_SCALE. Pointer
-     * speeds fit this fast path by several orders of magnitude, keeping the
-     * Cortex-M hot path on its native 32-bit divider. Preserve the full
-     * uint32_t API with a 64-bit fallback for unusual devicetree values.
-     */
-    if (numerator <= UINT32_MAX / VECTOR_ACCEL_SCALE) {
-        return (numerator * VECTOR_ACCEL_SCALE) / denominator;
-    }
-
-    return (uint32_t)(((uint64_t)numerator * VECTOR_ACCEL_SCALE) / denominator);
+    return vector_accel_speed(numerator, denominator);
 }
 
 bool vector_accel_config_valid(const struct vector_accel_config *config) {
@@ -76,7 +62,7 @@ bool vector_accel_config_valid(const struct vector_accel_config *config) {
 }
 
 uint32_t vector_accel_abs_i32(int32_t value) {
-    return value < 0 ? (uint32_t)(-(int64_t)value) : (uint32_t)value;
+    return value < 0 ? 0U - (uint32_t)value : (uint32_t)value;
 }
 
 uint32_t vector_accel_magnitude(int32_t x, int32_t y) {
@@ -84,7 +70,7 @@ uint32_t vector_accel_magnitude(int32_t x, int32_t y) {
     uint32_t abs_y = vector_accel_abs_i32(y);
     uint32_t major = abs_x > abs_y ? abs_x : abs_y;
     uint32_t minor = abs_x > abs_y ? abs_y : abs_x;
-    uint64_t approximation = (uint64_t)major + (((uint64_t)minor * 3U) >> 3);
+    uint32_t approximation = major + (minor >> 3) * 3U + (((minor & 7U) * 3U) >> 3);
 
     /* |x| and |y| are at most 2^31, so this is at most 11/8 * 2^31. */
     return (uint32_t)approximation;
@@ -119,10 +105,30 @@ uint32_t vector_accel_speed(uint32_t magnitude, uint32_t interval_ms) {
         return fraction > UINT32_MAX - scaled ? UINT32_MAX : scaled + fraction;
     }
 
-    uint64_t speed = ((uint64_t)magnitude * 1000U) / interval_ms;
-    /* This fallback only runs for intervals above UINT32_MAX / 1000 + 1,
-     * so the quotient is below 1,000,000 even at maximum magnitude. */
-    return (uint32_t)speed;
+    /* Binary long multiplication with a normalized remainder. Every add
+     * stays below the denominator; the quotient is at most SCALE - 1. */
+    uint32_t quotient = magnitude / interval_ms;
+    uint32_t source_remainder = magnitude % interval_ms;
+    uint32_t fraction = 0U;
+    uint32_t rest = 0U;
+    for (uint32_t bit = 512U; bit != 0U; bit >>= 1) {
+        fraction *= 2U;
+        if (rest >= interval_ms - rest) {
+            rest -= interval_ms - rest;
+            fraction++;
+        } else {
+            rest += rest;
+        }
+        if ((VECTOR_ACCEL_SCALE & bit) != 0U) {
+            if (rest >= interval_ms - source_remainder) {
+                rest -= interval_ms - source_remainder;
+                fraction++;
+            } else {
+                rest += source_remainder;
+            }
+        }
+    }
+    return quotient * VECTOR_ACCEL_SCALE + fraction;
 }
 
 uint16_t vector_accel_compute_factor(const struct vector_accel_config *config, uint32_t speed) {
@@ -150,55 +156,59 @@ uint16_t vector_accel_compute_factor(const struct vector_accel_config *config, u
 
 int32_t vector_accel_scale_value(int32_t value, uint16_t factor, int32_t *remainder) {
     const int32_t scale = (int32_t)VECTOR_ACCEL_SCALE;
-    int32_t previous_remainder = remainder == NULL ? 0 : *remainder;
-    int32_t value_quotient = 0;
-    int32_t value_remainder = value;
-    int32_t previous_quotient = 0;
-    int32_t previous_fraction = previous_remainder;
-
-    if (value <= -scale || value >= scale) {
-        value_quotient = value / scale;
-        value_remainder = value - value_quotient * scale;
-    }
-    if (previous_remainder <= -scale || previous_remainder >= scale) {
-        previous_quotient = previous_remainder / scale;
-        previous_fraction = previous_remainder - previous_quotient * scale;
+    const int32_t previous = remainder == NULL ? 0 : *remainder;
+    int32_t numerator;
+    if (!__builtin_mul_overflow(value, (int32_t)factor, &numerator) &&
+        !__builtin_add_overflow(numerator, previous, &numerator)) {
+        if (remainder != NULL) {
+            *remainder = numerator % scale;
+        }
+        return numerator / scale;
     }
 
-    int32_t fraction = value_remainder * factor + previous_fraction;
-    int32_t fraction_quotient = fraction / scale;
-    int64_t output = (int64_t)value_quotient * factor + previous_quotient + fraction_quotient;
-
-    fraction -= fraction_quotient * scale;
-
-    /* C division truncates toward zero, so the final remainder must have the
-     * same sign as the full result rather than as the fractional part alone.
-     */
-    if (output > 0 && fraction < 0) {
-        output--;
-        fraction += scale;
-    } else if (output < 0 && fraction > 0) {
-        output++;
-        fraction -= scale;
+    const int32_t whole = value / scale;
+    const int32_t fraction = (value % scale) * (int32_t)factor + previous % scale;
+    const int32_t correction = previous / scale + fraction / scale;
+    int32_t rest = fraction % scale;
+    bool negative = whole < 0;
+    uint32_t magnitude;
+    bool saturated = __builtin_mul_overflow(vector_accel_abs_i32(whole),
+                                              (uint32_t)factor, &magnitude);
+    if (!saturated) {
+        uint32_t adjustment = vector_accel_abs_i32(correction);
+        if ((correction < 0) == negative) {
+            saturated = __builtin_add_overflow(magnitude, adjustment, &magnitude);
+        } else if (adjustment > magnitude) {
+            magnitude = adjustment - magnitude;
+            negative = !negative;
+        } else {
+            magnitude -= adjustment;
+        }
     }
 
-    if (output > INT32_MAX) {
+    if (!saturated && magnitude > 0U) {
+        if (!negative && rest < 0) {
+            magnitude--;
+            rest += scale;
+        } else if (negative && rest > 0) {
+            magnitude--;
+            rest -= scale;
+        }
+    }
+    const uint32_t limit = negative ? (uint32_t)INT32_MAX + 1U : (uint32_t)INT32_MAX;
+    if (saturated || magnitude > limit) {
         if (remainder != NULL) {
             *remainder = 0;
         }
-        return INT32_MAX;
+        return negative ? INT32_MIN : INT32_MAX;
     }
-    if (output < INT32_MIN) {
-        if (remainder != NULL) {
-            *remainder = 0;
-        }
+    if (remainder != NULL) {
+        *remainder = rest;
+    }
+    if (negative && magnitude == (uint32_t)INT32_MAX + 1U) {
         return INT32_MIN;
     }
-
-    if (remainder != NULL) {
-        *remainder = fraction;
-    }
-    return (int32_t)output;
+    return negative ? -(int32_t)magnitude : (int32_t)magnitude;
 }
 
 void vector_accel_stream_init(struct vector_accel_stream *stream) {
@@ -208,15 +218,15 @@ void vector_accel_stream_init(struct vector_accel_stream *stream) {
 }
 
 static bool recent_report_interval(const struct vector_accel_stream *stream,
-                                   int64_t now_ms, uint32_t *interval_ms) {
-    if (!stream->have_report_time || now_ms < stream->last_report_time_ms) {
+                                   uint32_t now_ms, uint32_t *interval_ms) {
+    if (!stream->have_report_time) {
         return false;
     }
 
-    /* A monotonic difference can exceed INT64_MAX even though each timestamp
-     * is representable. Unsigned subtraction preserves that entire span;
-     * only a checked, short history interval is narrowed afterward. */
-    uint64_t elapsed = (uint64_t)now_ms - (uint64_t)stream->last_report_time_ms;
+    /* A stroke spans at most HISTORY_TIMEOUT_MS. Unsigned subtraction
+     * preserves it across uptime wrap; a full 2^32 ms silent span is outside
+     * this clock contract. */
+    uint32_t elapsed = now_ms - stream->last_report_time_ms;
     if (elapsed > VECTOR_ACCEL_HISTORY_TIMEOUT_MS) {
         return false;
     }
@@ -227,7 +237,7 @@ static bool recent_report_interval(const struct vector_accel_stream *stream,
 }
 
 uint16_t vector_accel_stream_begin_axis(struct vector_accel_stream *stream,
-                                        enum vector_accel_axis axis, int64_t now_ms) {
+                                        enum vector_accel_axis axis, uint32_t now_ms) {
     if ((uint32_t)axis >= VECTOR_ACCEL_AXIS_COUNT) {
         return stream->factor == 0U ? VECTOR_ACCEL_SCALE : stream->factor;
     }
@@ -274,7 +284,7 @@ void vector_accel_stream_add(struct vector_accel_stream *stream, enum vector_acc
 }
 
 void vector_accel_stream_finish_frame(struct vector_accel_stream *stream,
-                                      const struct vector_accel_config *config, int64_t now_ms) {
+                                      const struct vector_accel_config *config, uint32_t now_ms) {
     if (!stream->frame_open) {
         return;
     }
