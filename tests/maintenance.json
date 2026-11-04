@@ -31,5 +31,11 @@
     "contract": "Vector products, normalized ratios, speed and saturated signed output use 32-bit arithmetic. Rare full-range ratios use bounded binary fractional division. Core clock parameters and last_report_time_ms are uint32 milliseconds; migrate external core callers by passing the low 32 bits of monotonic uptime. Histories remain valid across wrap for intervals at most 100 ms. An entire 2^32 ms of silence cannot be distinguished from a short interval.",
     "fixtures": "test_vector_accel.c retains independent wide arithmetic references and gain/remainder/saturation cases, adds cancellation at signed limits and checks long gaps, backwards times and wrap continuity. test_vector_width.py rejects wide helpers in a 32-bit object.",
     "physical": "NOT RUN"
+  },
+  "custom_settings_speed_contract": {
+    "range": "Positive int32 when Custom Settings is enabled; unchanged uint32 base driver otherwise",
+    "host": "test_custom_speed_contract.py compiles actual registration macro defaults/constraints/guard; driver_ram_harness.c tests matching setter rejection without mutation",
+    "native": "DYA Studio fixture writes 1000001 and INT32_MAX through the registry; guards/run-custom-speed.sh requires the named DTS int32 range rejection",
+    "negative_control": "VECTOR_ACCEL_REVIEW_SETTINGS_REV=PRIOR_COMMIT uses before-repair registration macro and must fail all three host assertions"
   }
 }

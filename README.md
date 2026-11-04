@@ -152,6 +152,11 @@ four values in [zmk-feature-custom-settings](https://github.com/cormoran/zmk-fea
 which is a registry shared across modules: a Studio client that renders it
 renders these too, with the declared type and range driving the widget, so the
 module needs no page of its own. The defaults are the devicetree values.
+With this integration enabled, `unity-speed` and `max-speed` must fit in a
+positive `int32` (`1..2147483647`, with `max-speed > unity-speed`). DTS defaults,
+runtime updates and registry constraints enforce that same range. The base
+driver without Custom Settings continues to support its full `uint32` speed
+range.
 They appear under the `amgskobo__accel` subsystem. The subsystem is part of
 every persisted settings name, so its length reduces the space available for
 each node name.

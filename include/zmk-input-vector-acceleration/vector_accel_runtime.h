@@ -29,7 +29,9 @@ int vector_accel_get_config(const struct device *dev, struct vector_accel_config
  * custom-settings integration, the driver also persists it. When
  * custom-settings is enabled,
  * that registry is the sole persistence owner and
- * a direct call changes RAM only. Returns
+ * a direct call changes RAM only. Speeds must then fit in positive int32
+ * values, matching the registry and its DTS defaults. Without that integration
+ * the base driver's uint32 speed range remains available. Returns
  * -EINVAL and changes nothing when the
  * values fall outside the bounds the devicetree
  * BUILD_ASSERTs enforce, so a

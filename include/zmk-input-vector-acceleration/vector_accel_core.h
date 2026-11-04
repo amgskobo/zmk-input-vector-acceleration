@@ -30,6 +30,8 @@
  */
 #define VECTOR_ACCEL_MIN_FACTOR_FLOOR 100U
 #define VECTOR_ACCEL_MAX_FACTOR_CEILING 20000U
+/* Custom Settings represents scalar speeds as non-negative int32 values. */
+#define VECTOR_ACCEL_CUSTOM_SETTINGS_SPEED_CEILING INT32_MAX
 
 enum vector_accel_axis {
     VECTOR_ACCEL_AXIS_X = 0,

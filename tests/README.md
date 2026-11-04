@@ -44,8 +44,16 @@ Those histories determine speed/gain and cannot move into final suppression.
 The fallback remainders are required for callers without listener remainder
 storage. Curve snapshot locking and delayed save work own runtime tuning. The
 custom-settings build excludes local persistence so only one writer is active.
-Production state/API/DTS/Kconfig remain unchanged. The current review adds
-explicit workspace selection and its infrastructure tests.
+Workspace selection and its infrastructure tests keep the selected dependency
+providers explicit.
+
+Custom Settings speeds use the registry's positive int32 range. The host
+registration-macro test admits defaults above one million and at INT32_MAX,
+then rejects an unrepresentable default with its named build error. The RAM
+driver fixture checks matching runtime acceptance/rejection and unchanged state
+on rejection. The DYA registry fixture writes those high speeds through the
+actual registry; integration also retains a real DTS rejection build. The base
+driver's uint32 arithmetic and supported-core variants remain covered.
 
 | Boundary | Retained fixture/assertions |
 | --- | --- |

@@ -5,6 +5,7 @@
  * values in RAM, schedules no save and defines no save work.
  */
 #include <assert.h>
+#include <errno.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -14,9 +15,14 @@
 
 struct k_spinlock { int held; };
 struct device { const void *config; void *data; const char *name; };
+typedef int k_spinlock_key_t;
+static k_spinlock_key_t k_spin_lock(struct k_spinlock *lock) { (void)lock; return 0; }
+static void k_spin_unlock(struct k_spinlock *lock, k_spinlock_key_t key) { (void)lock; (void)key; }
 
 #define IS_ENABLED(option) option
 #define VECTOR_ACCEL_STREAM_COUNT 2
+#define CONFIG_ZMK_INPUT_VECTOR_ACCELERATION_CUSTOM_SETTINGS 1
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 #define ARG_UNUSED(x) ((void)(x))
 
 struct vector_accel_data {
@@ -25,6 +31,8 @@ struct vector_accel_data {
     struct k_spinlock config_lock;
     struct vector_accel_config config;
 };
+static struct device instance;
+static const struct device *const vector_accel_devices[] = {&instance};
 
 /* DRIVER_FUNCTIONS */
 
@@ -44,6 +52,23 @@ int main(void) {
         assert(((const uint8_t *)data.fallback_remainders)[i] == 0x5a);
     }
     assert(vector_accel_schedule_save(&data) == 0);
+    instance = dev;
+    struct device stranger = dev;
+    struct vector_accel_config curve = defaults;
+    assert(vector_accel_set_config(NULL, &curve) == -EINVAL);
+    assert(vector_accel_set_config(&instance, NULL) == -EINVAL);
+    assert(vector_accel_set_config(&stranger, &curve) == -ENODEV);
+    curve.max_speed = 1000001;
+    assert(vector_accel_set_config(&instance, &curve) == 0);
+    assert(data.config.max_speed == 1000001);
+    curve.max_speed = INT32_MAX;
+    assert(vector_accel_set_config(&instance, &curve) == 0);
+    curve.max_speed = (uint32_t)INT32_MAX + 1U;
+    assert(vector_accel_set_config(&instance, &curve) == -EINVAL);
+    assert(data.config.max_speed == INT32_MAX);
+    curve.unity_speed = (uint32_t)INT32_MAX + 1U;
+    curve.max_speed = UINT32_MAX;
+    assert(vector_accel_set_config(&instance, &curve) == -EINVAL);
     puts("vector-acceleration RAM-only driver: PASS");
     return 0;
 }

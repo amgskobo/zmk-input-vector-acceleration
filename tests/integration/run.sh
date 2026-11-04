@@ -89,6 +89,7 @@ zmk_test_select_workspace "$upstream_dir"
 bash "$tests_dir/guards/run.sh" "$upstream_dir" "$work_dir/build/guards"
 zmk_test_select_workspace "$dya_dir"
 (cd "$dya_dir" && west zephyr-export)
+bash "$tests_dir/guards/run-custom-speed.sh" "$dya_dir" "$work_dir/build/dya-speed-guard"
 bash "$tests_dir/firmware/run.sh" "$dya_dir" "$work_dir/build/firmware"
 
 runtime_exe="$work_dir/build/upstream-runtime/zephyr/zmk.exe"
@@ -111,6 +112,7 @@ for repeat in 1 2 3; do
     studio_log="$work_dir/build/dya-studio.run-$repeat.log"
     if ! timeout 30 "$studio_exe" >"$studio_log" 2>&1 ||
        ! grep -Fq "vector acceleration Studio settings tests: PASS" "$studio_log" ||
+       ! grep -Fq "vector acceleration Custom Settings speed range: PASS" "$studio_log" ||
        ! grep -Fq "vector acceleration concurrent settings: PASS" "$studio_log"; then
         echo "FAILED: dya-studio repeat $repeat"
         tail -n 60 "$studio_log"

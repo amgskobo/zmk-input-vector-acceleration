@@ -60,6 +60,9 @@ fixtures = (
     ("driver_ram", "input_processor_vector_accel.c", (
         "vector_accel_init",
         "vector_accel_schedule_save:2",
+        "vector_accel_config_replace",
+        "vector_accel_device_index",
+        "vector_accel_set_config",
     ), ()),
     ("custom_settings", "input_processor_vector_accel_custom_settings.c", (
         "vector_accel_namespace_handler",
