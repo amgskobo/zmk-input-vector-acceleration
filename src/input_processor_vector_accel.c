@@ -367,6 +367,13 @@ int vector_accel_set_config(const struct device *dev, const struct vector_accel_
         return -EINVAL;
     }
 
+#if IS_ENABLED(CONFIG_ZMK_INPUT_VECTOR_ACCELERATION_CUSTOM_SETTINGS)
+    if (config->unity_speed > VECTOR_ACCEL_CUSTOM_SETTINGS_SPEED_CEILING ||
+        config->max_speed > VECTOR_ACCEL_CUSTOM_SETTINGS_SPEED_CEILING) {
+        return -EINVAL;
+    }
+#endif
+
     index = vector_accel_device_index(dev);
     if (index < 0) {
         return index;

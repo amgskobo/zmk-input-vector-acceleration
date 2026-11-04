@@ -97,13 +97,19 @@ static bool vector_accel_namespace_handler(const zmk_custom_CallRequest *request
  * when the four are applied together.
  */
 #define VECTOR_ACCEL_SETTINGS(n)                                                                   \
+    BUILD_ASSERT(DT_INST_PROP(n, unity_speed) <= VECTOR_ACCEL_CUSTOM_SETTINGS_SPEED_CEILING,      \
+                 "unity-speed exceeds the Custom Settings int32 range");                         \
+    BUILD_ASSERT(DT_INST_PROP(n, max_speed) <= VECTOR_ACCEL_CUSTOM_SETTINGS_SPEED_CEILING,        \
+                 "max-speed exceeds the Custom Settings int32 range");                           \
     ZMK_INPUT_VECTOR_ACCELERATION_ASSERT_NAME_FITS(n, "unity_speed")                               \
     VECTOR_ACCEL_SETTING(n, min_factor, "min_factor", VECTOR_ACCEL_MIN_FACTOR_FLOOR,               \
                          VECTOR_ACCEL_SCALE)                                                       \
     VECTOR_ACCEL_SETTING(n, max_factor, "max_factor", VECTOR_ACCEL_SCALE,                          \
                          VECTOR_ACCEL_MAX_FACTOR_CEILING)                                          \
-    VECTOR_ACCEL_SETTING(n, unity_speed, "unity_speed", 1, 1000000)                                \
-    VECTOR_ACCEL_SETTING(n, max_speed, "max_speed", 2, 1000000)
+    VECTOR_ACCEL_SETTING(n, unity_speed, "unity_speed", 1,                                        \
+                         VECTOR_ACCEL_CUSTOM_SETTINGS_SPEED_CEILING)                               \
+    VECTOR_ACCEL_SETTING(n, max_speed, "max_speed", 2,                                            \
+                         VECTOR_ACCEL_CUSTOM_SETTINGS_SPEED_CEILING)
 
 DT_INST_FOREACH_STATUS_OKAY(VECTOR_ACCEL_SETTINGS)
 

@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -142,6 +143,18 @@ static void run_tests(void *p1, void *p2, void *p3) {
     __ASSERT_NO_MSG(write_int(keys[0], 99) < 0);
     __ASSERT_NO_MSG(vector_accel_get_config(accel, &config) == 0);
     __ASSERT_NO_MSG(same_config(&config, 600, 20000, 7000, 9000));
+
+    __ASSERT_NO_MSG(write_int(keys[3], 1000001) == 0);
+    __ASSERT_NO_MSG(vector_accel_get_config(accel, &config) == 0);
+    __ASSERT_NO_MSG(same_config(&config, 600, 20000, 7000, 1000001));
+    __ASSERT_NO_MSG(write_int(keys[3], INT32_MAX) == 0);
+    __ASSERT_NO_MSG(vector_accel_get_config(accel, &config) == 0);
+    __ASSERT_NO_MSG(config.max_speed == INT32_MAX);
+    struct vector_accel_config invalid = config;
+    invalid.max_speed = (uint32_t)INT32_MAX + 1U;
+    __ASSERT_NO_MSG(vector_accel_set_config(accel, &invalid) == -EINVAL);
+    __ASSERT_NO_MSG(write_int(keys[3], 9000) == 0);
+    printk("vector acceleration Custom Settings speed range: PASS\n");
 
     test_concurrent_settings();
     printk("vector acceleration Studio settings tests: PASS\n");
