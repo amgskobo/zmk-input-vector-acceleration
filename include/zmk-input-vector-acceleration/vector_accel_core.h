@@ -51,7 +51,8 @@ struct vector_accel_stream {
     uint32_t last_report_time_ms;
     /* Decayed sums of the recent frames' travel and of the time between them. */
     uint32_t history_magnitude;
-    uint32_t history_span_ms;
+    /* At most TIMEOUT_MS * 2^DECAY_SHIFT (currently 200 ms), including rounding. */
+    uint16_t history_span_ms;
     uint16_t factor;
     uint8_t seen_axes;
     bool have_report_time;

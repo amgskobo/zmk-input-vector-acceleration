@@ -12,6 +12,9 @@
 
 #define ARRAY_SIZE(array) (sizeof(array) / sizeof((array)[0]))
 
+_Static_assert(sizeof(struct vector_accel_stream) <= 24U,
+               "vector stream storage must not exceed 24 bytes");
+
 static const struct vector_accel_config test_config = {
     .min_factor = 500,
     .max_factor = 3200,
@@ -565,6 +568,51 @@ static void test_full_timestamp_range(void) {
 
 }
 
+static void test_bounded_history_span(void) {
+    struct vector_accel_stream stream;
+    vector_accel_stream_init(&stream);
+    uint64_t expected_span = 0U;
+    uint64_t expected_magnitude = 0U;
+    uint32_t now = UINT32_MAX - 350U;
+
+    /* Reach the rounded fixed point across uptime wrap, then exercise every
+     * accepted interval plus forward-gap and backwards-clock resets. The
+     * oracle retains wide state and does not use the production decay code. */
+    x_frame(&stream, now, 7);
+    for (uint32_t frame = 0U; frame < 12000U; frame++) {
+        uint32_t elapsed = frame < 64U ? 100U : frame % 103U;
+        if (elapsed == 102U) {
+            elapsed = UINT32_MAX;
+        }
+        int32_t delta = (frame & 1U) == 0U ? INT32_MAX : -17;
+        now += elapsed;
+        if (elapsed <= 100U) {
+            expected_span = (expected_span + 1U) / 2U + elapsed;
+            expected_magnitude = (expected_magnitude + 1U) / 2U +
+                                 (delta < 0 ? (uint64_t)(-(int64_t)delta) : (uint64_t)delta);
+            if (expected_magnitude > UINT32_MAX) {
+                expected_magnitude = UINT32_MAX;
+            }
+        } else {
+            expected_span = 0U;
+            expected_magnitude = 0U;
+        }
+        x_frame(&stream, now, delta);
+        assert(stream.history_span_ms == expected_span);
+        assert(stream.history_span_ms <= 200U);
+        assert(stream.history_magnitude == expected_magnitude);
+        assert(stream.factor == (elapsed <= 100U
+                   ? reference_factor(&test_config,
+                                      reference_speed((uint32_t)expected_magnitude,
+                                                      (uint32_t)expected_span))
+                   : VECTOR_ACCEL_SCALE));
+        if (frame == 63U) {
+            assert(stream.history_span_ms == 200U);
+        }
+    }
+    puts("vector bounded history: 12000 ordered frames PASS");
+}
+
 int main(void) {
     test_absolute_value();
     test_magnitude();
@@ -580,6 +628,7 @@ int main(void) {
     test_unusual_input_guards();
     test_exact_boundaries();
     test_full_timestamp_range();
+    test_bounded_history_span();
     puts("vector acceleration tests: PASS");
     return 0;
 }

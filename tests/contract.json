@@ -7,7 +7,7 @@
   "contracts": [
     {
       "fixture": "tests/test_vector_accel.c",
-      "asserts": "Gain interpolation, vector direction, saturation and rounding"
+      "asserts": "Gain interpolation, vector direction, saturation, rounding and bounded time-history storage against an independent wide recurrence"
     },
     {
       "fixture": "tests/runtime/driver_harness.c",
@@ -50,6 +50,7 @@
     "production": "32-bit arithmetic; independent wider oracles remain test-only",
     "contract": "Vector products, normalized ratios, speed and saturated signed output use 32-bit arithmetic. Rare full-range ratios use bounded binary fractional division. Core clock parameters and last_report_time_ms are uint32 milliseconds; migrate external core callers by passing the low 32 bits of monotonic uptime. Histories remain valid across wrap for intervals at most 100 ms. An entire 2^32 ms of silence cannot be distinguished from a short interval.",
     "fixtures": "test_vector_accel.c retains independent wide arithmetic references and gain/remainder/saturation cases, adds cancellation at signed limits and checks long gaps, backwards times and wrap continuity. test_vector_width.py rejects wide helpers in a 32-bit object.",
-    "physical": "NOT RUN"
+    "physical": "NOT RUN",
+    "history_storage": "uint16 time history, reachable 0..200 ms under 100 ms intervals and half decay; compile-time capacity guard; 24-byte stream layout guard; 12000 ordered frames against independent wide recurrence, all 0..100 ms intervals, wrap and long-gap/backwards resets with per-frame gain checks. Recompile public core callers; curve persistence layout and listener capacities are unchanged."
   }
 }

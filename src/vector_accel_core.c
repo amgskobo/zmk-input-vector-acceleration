@@ -8,6 +8,10 @@
 
 #include <zmk-input-vector-acceleration/vector_accel_core.h>
 
+_Static_assert((uint32_t)VECTOR_ACCEL_HISTORY_TIMEOUT_MS <=
+                   ((uint32_t)UINT16_MAX >> VECTOR_ACCEL_HISTORY_DECAY_SHIFT),
+               "vector history span must fit in uint16_t");
+
 static uint32_t clamp_u32(uint32_t value, uint32_t lower, uint32_t upper) {
     if (value < lower) {
         return lower;
@@ -296,7 +300,8 @@ void vector_accel_stream_finish_frame(struct vector_accel_stream *stream,
 
         stream->history_magnitude =
             saturating_add_u32(history_decay(stream->history_magnitude), magnitude);
-        stream->history_span_ms = history_decay(stream->history_span_ms) + interval_ms;
+        stream->history_span_ms =
+            (uint16_t)(history_decay(stream->history_span_ms) + interval_ms);
         stream->factor = vector_accel_compute_factor(
             config, vector_accel_speed(stream->history_magnitude, stream->history_span_ms));
     } else {

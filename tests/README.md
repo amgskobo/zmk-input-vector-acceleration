@@ -14,13 +14,22 @@ map current fixtures, commands, supported cores and gaps.
 
 | Fixture | Assertions |
 | --- | --- |
-| [test_vector_accel.c](test_vector_accel.c) | Gain interpolation, vector direction, saturation and rounding |
+| [test_vector_accel.c](test_vector_accel.c) | Gain interpolation, vector direction, saturation, rounding and bounded time-history storage |
 | [runtime/driver_harness.c](runtime/driver_harness.c) | Frame timing, independent histories and persistence callbacks |
 | [runtime/driver_ram_harness.c](runtime/driver_ram_harness.c) | RAM-only persistence variant |
 | [runtime/custom_settings_harness.c](runtime/custom_settings_harness.c) | Custom-settings persistence owner |
 | [test_runtime_coverage.py](test_runtime_coverage.py) | Actual runtime entry rejects empty, unrelated and partially measured gcov reports |
+| [test_vector_width.py](test_vector_width.py) | 32-bit object arithmetic helpers and named time-history capacity boundary rejection |
 
 The core checks modulo-32-bit timestamp endpoints, long forward gaps, backwards-clock resets and history continuity across wrap. This clock domain intentionally replaces the former signed-64-bit domain; prior fixtures and passing logs are retained by the consuming integration owner.
+
+The time-history fixture compares 12,000 ordered frames with independent wide
+state. It reaches the 200 ms rounded fixed point, exercises all intervals
+0–100 ms, forward gaps, backwards time and wrap, and checks the matching gain
+after every frame. A named 24-byte stream layout assertion rejects the original
+28-byte layout. The production compile-time bound also rejects constants that
+cannot fit the time-history storage. Listener slots, fallback remainders,
+timestamp width, curve ranges and persistence layouts retain their contracts.
 
 Each fixture keeps its existing normal, boundary/invalid, independent-state,
 reset/cancellation and failure/recovery scenarios where applicable. Checks

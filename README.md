@@ -209,6 +209,15 @@ uptime. Histories remain valid across wrap for intervals at most 100 ms.
 A full 2^32 ms of silence (about 49.7 days) cannot be distinguished from a
 short interval.
 
+The decayed time history uses `uint16_t` storage. For an accepted interval
+`dt` between 0 and 100 ms, `h_next = ceil(h / 2) + dt` stays between 0 and
+200 ms, including rounding. A compile-time guard checks that the time-history
+bound fits its storage if the constants change. This reduces each stream
+from 28 to 24 bytes on the supported 32-bit and 64-bit C ABIs while preserving
+every listener slot, frame, gain and remainder. The public core stream layout
+changes, so recompile callers against the current header. The curve's stored
+configuration keeps its existing layout.
+
 The [test guide](tests/README.md) maps independent wide arithmetic references,
 signed-limit cancellation, gain/remainder/saturation, long gaps, backwards
 times, wrap continuity and the 32-bit object width guard.
