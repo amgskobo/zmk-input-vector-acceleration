@@ -13,3 +13,7 @@ if(CONFIG_ZMK_INPUT_VECTOR_ACCELERATION_TEST_STUDIO)
     target_sources(app PRIVATE src/studio_test.c)
     zephyr_link_libraries(-Wl,--wrap=zmk_custom_setting_read)
 endif()
+
+if(CONFIG_ZMK_INPUT_VECTOR_ACCELERATION_TEST_SOURCE_BOUND)
+    target_sources(app PRIVATE src/source_bound_test.c)
+endif()

@@ -7,6 +7,11 @@
 
 set -euo pipefail
 
+if [ "$#" -ne 0 ] || [ "${ZMK_TEST_SOURCE_BOUND_PROFILE+x}" ] || [ "${ZMK_VECTOR_SOURCE_PROFILE+x}" ]; then
+    echo 'canonical integration forbids focused source-bound selectors' >&2
+    exit 2
+fi
+
 tests_dir=/src/tests/integration
 source "$tests_dir/workspace-env.sh"
 
@@ -137,5 +142,10 @@ done
 grep -Fq "vector acceleration persistence first boot: PASS" "$persistence_log"
 grep -Fq "vector acceleration persistence second boot: PASS" "$persistence_log"
 echo "PASS: upstream-persistence execution"
+
+python3 "$tests_dir/../source-bound/run.py" --workspace "$upstream_dir" --core stock \
+    --output "$work_dir/source-bound-stock"
+python3 "$tests_dir/../source-bound/run.py" --workspace "$dya_dir" --core dya \
+    --output "$work_dir/source-bound-dya"
 
 echo "vector acceleration integration: PASS"

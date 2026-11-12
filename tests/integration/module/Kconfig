@@ -12,3 +12,13 @@ config ZMK_INPUT_VECTOR_ACCELERATION_TEST_PERSISTENCE
 config ZMK_INPUT_VECTOR_ACCELERATION_TEST_STUDIO
     bool "Run vector acceleration custom-settings self-tests"
     depends on ZMK_INPUT_VECTOR_ACCELERATION_CUSTOM_SETTINGS
+
+config ZMK_INPUT_VECTOR_ACCELERATION_TEST_SOURCE_BOUND
+    bool "Run vector source-bound tests"
+    depends on ZMK_INPUT_PROCESSOR_VECTOR_ACCELERATION
+
+config ZMK_INPUT_VECTOR_ACCELERATION_TEST_SOURCE_BASE
+    int "Source-bound fixture first listener index"
+    depends on ZMK_INPUT_VECTOR_ACCELERATION_TEST_SOURCE_BOUND
+    default 0
+    range 0 3

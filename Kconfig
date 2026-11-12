@@ -16,6 +16,22 @@ config ZMK_INPUT_PROCESSOR_VECTOR_ACCELERATION
 
 if ZMK_INPUT_PROCESSOR_VECTOR_ACCELERATION
 
+config ZMK_INPUT_VECTOR_ACCELERATION_MAX_SOURCES
+    int "Vector acceleration source slots (0: automatic)"
+    range 0 256
+    default 0
+    help
+      Zero preserves the automatic allocation: one slot per enabled input
+      listener, with at least one slot. A positive value reserves exactly the
+      original listener-index prefix 0 through N-1, without remapping sources.
+      Every enabled listener with an enabled device that routes through any
+      vector instance must fit, including all child routes. Other direct
+      callers must also fit this prefix; NULL state uses slot zero. Higher
+      indices pass through unchanged. Each instance reserves 24 bytes of
+      history and 4 bytes of fallback remainders per slot, plus fixed state
+      and target-dependent alignment. Recheck generated listener indices and
+      rebuild all affected roles after changing the input graph.
+
 config ZMK_INPUT_VECTOR_ACCELERATION_CUSTOM_SETTINGS
     bool "Publish the curve through zmk-feature-custom-settings"
     # Not ZMK_CUSTOM_SETTINGS: registering a subsystem needs zmk/studio/custom.h,

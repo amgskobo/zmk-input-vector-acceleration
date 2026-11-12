@@ -99,6 +99,44 @@ ZMK_TEST_OUTPUT=/tmp/vector-acceleration-integration-v1 \
 bash /src/tests/integration/run.sh
 ```
 
+## Optional source-prefix capacity
+
+The canonical integration entry accepts no arguments and rejects ambient
+`ZMK_TEST_SOURCE_BOUND_PROFILE`/`ZMK_VECTOR_SOURCE_PROFILE` selectors. It runs
+the complete existing matrix and then all twelve `tests/source-bound/run.py`
+profiles on both unchanged stock and DYA. High IDs 3/4 remain covered in auto;
+low IDs 0/1 run in auto and with `MAX_SOURCES=2`; `256` exercises every byte ID.
+Every runtime profile requires three identical-binary completions, two vector
+nodes, independent source histories, NULL slot zero, unchanged invalid input,
+curve changes and a compiled assertion of actual driver capacity. Portable
+quick/full also test all 256 IDs under limits 1, 2 and 256 with ASan/UBSan;
+full retains optimization and measured coverage.
+
+Real DTS guards reject high-index default, child, disabled-child and second-node
+routes and exact prefix endpoints at limits 1 and 3. Disabled listeners and
+disabled referenced devices remain permitted. Four owner guard mutants qualify
+only when the validator reports its named
+missing routed-listener rejection, with successful mutant compilation.
+`control-original.py` separately requires the unchanged before-limit driver to
+hit the named compiled two-slot capacity assertion against a completed low-2
+build; unrelated compiler errors do not qualify.
+
+For focused diagnosis only, inside the same prepared Docker environment:
+
+```sh
+python3 tests/source-bound/run.py --workspace RESOLVED --core stock \
+  --output FRESH --profile low-2
+python3 tests/source-bound/control-original.py --build COMPLETED/low-2/build \
+  --original-driver RETAINED_ORIGINAL/src/input_processor_vector_accel.c --output FRESH_CONTROL
+```
+
+The standalone selector is explicit; it never establishes the complete owner
+matrix. Recompile original/default/limited ARM objects from the emitted board
+commands and matching generated headers to separate actual static storage,
+code size and compiler frames from installed runtime high-water. Hardware,
+browser and hosted-CI gates remain separate. The option, byte costs, direct
+caller obligations and remeasurement requirements are documented in both READMEs.
+
 ## Concurrent registry updates
 
 The settings adapter serializes each complete registry read/apply transaction,

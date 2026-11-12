@@ -108,6 +108,35 @@ The curve is quadratic from `min-factor` to 1.0x, then quadratic from 1.0x to
 `max-factor`. Invalid relationships stop the firmware build with a clear
 message.
 
+## Optional source capacity
+
+`CONFIG_ZMK_INPUT_VECTOR_ACCELERATION_MAX_SOURCES` defaults to `0`. This keeps
+the original automatic allocation: all enabled `zmk,input-listener` indices,
+with at least one slot per vector instance. A value from `1` to `256` reserves
+exactly the global listener-index prefix `0..N-1`; IDs are never remapped.
+For example, `CONFIG_ZMK_INPUT_VECTOR_ACCELERATION_MAX_SOURCES=2` supports
+source IDs 0 and 1 only. Adopt it after checking the generated DTS and global
+listener indices for every role and every layer route.
+
+The build rejects an enabled listener with an enabled input device if its
+default route or any child route references any vector node outside that
+prefix. Children marked disabled are included because ZMK visits those routes.
+The guard covers DTS listeners; direct API callers must also use the configured
+prefix. NULL state uses slot 0. A higher index passes through unchanged without
+altering its remainder or another source's history. `256` admits every value
+of ZMK's `uint8_t` source ID. Curves, per-node/per-source histories, fallback
+remainders, persistence and the input-processor API keep their existing rules.
+
+Each slot reserves 24 bytes of history and 4 bytes of fallback remainders per
+vector instance. Fixed curve/lock/save-work state and target alignment also
+contribute. Reducing five slots to two saves 84 bytes per instance before
+alignment; compare actual ARM objects/ELFs for the selected settings variant.
+After adding/reordering listeners or changing routes, recheck the generated
+indices, rebuild every affected role, rerun the owner integration suite, and
+remeasure installed high-load memory/stack use. Compiler frames are separate
+from runtime stack high-water. The [test guide](tests/README.md) describes the
+automatic, limited-prefix and full-256 cases and remaining hardware gates.
+
 ## Runtime configuration
 
 The devicetree values are defaults. `vector_accel_runtime.h` lets firmware

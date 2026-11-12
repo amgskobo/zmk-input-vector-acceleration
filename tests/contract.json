@@ -46,6 +46,15 @@
   },
   "suppression_scope": "No final source-button policy. Keep vector frames/history/remainders and exactly one persistence owner; existing executable tests unchanged.",
   "selected_workspace": "Workspace selection uses tests/integration/workspace-env.sh to export the selected manifest's ZEPHYR_MODULES and explicit Zephyr package/base paths. A Zephyr symlink to a different cache must not select that cache's module providers. The owner test_workspace_env.py exercises actual selection with a poisoned ambient list, a cache symlink, module paths containing spaces, failed project discovery and an empty selection. The keep-ambient negative control must fail these assertions. Full integration retains all supported-core, role, persistence and invalid-DTS cases. No dependency is patched or required feature disabled.",
+  "source_capacity": {
+    "option": "CONFIG_ZMK_INPUT_VECTOR_ACCELERATION_MAX_SOURCES: default0 exact automatic count/minimum1; positive1..256 original global ID prefix with no remapping",
+    "storage": "24-byte history plus4-byte fallback remainders per instance/source, fixed state and target alignment retained",
+    "guards": "Enabled listener and enabled referenced device; default and ALL child routes including disabled children; any vector instance",
+    "portable": "source_bound_harness.c: every byte ID with limits1,2,256, two nodes, NULL and invalid unchanged lookup; existing driver/persistence/curve/remainder assertions remain",
+    "integration": "source-bound/run.py: twelve profiles on both cores, high3/4 auto, low0/1 auto/2, full256, six named route rejects including exact prefix endpoints1/3, disabled listener/device acceptance, four guard mutants; each runtime profile same ELF three times with required completion and actual capacity assertion",
+    "original_control": "source-bound/control-original.py requires the original driver to hit the named two-slot allocation assertion; classify separately from product results",
+    "selection": "Canonical integration pins complete original plus source profiles; rejects argument/ambient focused selectors; standalone --profile is documented diagnostic only"
+  },
   "integer_width": {
     "production": "32-bit arithmetic; independent wider oracles remain test-only",
     "contract": "Vector products, normalized ratios, speed and saturated signed output use 32-bit arithmetic. Rare full-range ratios use bounded binary fractional division. Core clock parameters and last_report_time_ms are uint32 milliseconds; migrate external core callers by passing the low 32 bits of monotonic uptime. Histories remain valid across wrap for intervals at most 100 ms. An entire 2^32 ms of silence cannot be distinguished from a short interval.",

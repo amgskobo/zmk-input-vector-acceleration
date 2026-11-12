@@ -40,6 +40,9 @@ links = (source_dir / "vector_accel_core.c",)
 # Sources with a coverage gate of their own.
 elsewhere = ("vector_accel_core.c",)
 fixtures = (
+    ("source_bound_1", "input_processor_vector_accel.c", ("stream_for_event",), ()),
+    ("source_bound_2", "input_processor_vector_accel.c", ("stream_for_event",), ()),
+    ("source_bound_256", "input_processor_vector_accel.c", ("stream_for_event",), ()),
     ("driver", "input_processor_vector_accel.c", (
         "vector_accel_config_snapshot",
         "vector_accel_config_replace",
@@ -211,8 +214,11 @@ for fixture, file_name, gated, support in fixtures:
             text = "__attribute__((unused)) " + text
         functions.append(f'#line {first} "{source_path}"\n{text}')
 
-    harness_path = root / "tests/runtime" / f"{fixture}_harness.c"
+    harness_name = "source_bound" if fixture.startswith("source_bound_") else fixture
+    harness_path = root / "tests/runtime" / f"{harness_name}_harness.c"
     harness = harness_path.read_text(encoding="utf-8")
+    if fixture.startswith("source_bound_"):
+        harness = f'#define VECTOR_ACCEL_STREAM_COUNT {fixture.rsplit("_", 1)[1]}\n' + harness
     marker = "/* DRIVER_FUNCTIONS */"
     resume = harness.count("\n", 0, harness.index(marker)) + 2
     with tempfile.TemporaryDirectory(prefix=f"{fixture}-runtime-") as folder:

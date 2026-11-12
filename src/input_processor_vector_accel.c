@@ -39,7 +39,30 @@
 LOG_MODULE_REGISTER(zmk_vector_accel, CONFIG_ZMK_INPUT_VECTOR_ACCELERATION_LOG_LEVEL);
 
 #define VECTOR_ACCEL_LISTENER_COUNT DT_NUM_INST_STATUS_OKAY(zmk_input_listener)
+#if CONFIG_ZMK_INPUT_VECTOR_ACCELERATION_MAX_SOURCES > 0
+#define VECTOR_ACCEL_STREAM_COUNT CONFIG_ZMK_INPUT_VECTOR_ACCELERATION_MAX_SOURCES
+
+/* ZMK visits every child route, including children marked disabled. It only
+ * registers an enabled listener when its referenced input device is enabled.
+ * Keep the original global listener IDs; do not count only vector routes. */
+#define VECTOR_ACCEL_ROUTE_ENTRY(node, prop, idx)                                                 \
+    + DT_NODE_HAS_COMPAT(DT_PHANDLE_BY_IDX(node, prop, idx), DT_DRV_COMPAT)
+#define VECTOR_ACCEL_ROUTE_USES_VECTOR(node)                                                      \
+    COND_CODE_1(DT_NODE_HAS_PROP(node, input_processors),                                          \
+                ((0 DT_FOREACH_PROP_ELEM(node, input_processors, VECTOR_ACCEL_ROUTE_ENTRY))), (0))
+#define VECTOR_ACCEL_CHECK_ROUTE(node, index)                                                     \
+    BUILD_ASSERT((index) < VECTOR_ACCEL_STREAM_COUNT || !VECTOR_ACCEL_ROUTE_USES_VECTOR(node),    \
+                 "vector acceleration source limit excludes a routed listener");
+#define VECTOR_ACCEL_CHECK_LISTENER(index, ...)                                                   \
+    COND_CODE_1(                                                                                  \
+        DT_NODE_HAS_STATUS(DT_PHANDLE(DT_INST(index, zmk_input_listener), device), okay),           \
+        (VECTOR_ACCEL_CHECK_ROUTE(DT_INST(index, zmk_input_listener), index)                      \
+         DT_FOREACH_CHILD_VARGS(DT_INST(index, zmk_input_listener), VECTOR_ACCEL_CHECK_ROUTE,      \
+                                index)), ())
+LISTIFY(VECTOR_ACCEL_LISTENER_COUNT, VECTOR_ACCEL_CHECK_LISTENER, ())
+#else
 #define VECTOR_ACCEL_STREAM_COUNT MAX(VECTOR_ACCEL_LISTENER_COUNT, 1)
+#endif
 
 struct vector_accel_data {
     struct vector_accel_stream streams[VECTOR_ACCEL_STREAM_COUNT];
@@ -87,8 +110,10 @@ static struct vector_accel_stream *stream_for_event(
 
     if (state == NULL) {
         index = 0U;
+#if VECTOR_ACCEL_STREAM_COUNT < 256
     } else if (state->input_device_index >= VECTOR_ACCEL_STREAM_COUNT) {
         return NULL;
+#endif
     } else {
         index = state->input_device_index;
     }
